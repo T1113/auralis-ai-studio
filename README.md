@@ -7,6 +7,8 @@
 <a id="english"></a>
 ## English
 
+![Auralis UI Preview](./docs/ui_preview.png)
+
 Auralis is a premium, open-source AI Portrait Studio. It allows users to generate professional ID photos and business portraits directly from their browser, eliminating the need to visit a physical photo studio. 
 
 The project features a modern Glassmorphism frontend and integrates seamlessly with OpenAI's Image API (via a secure Cloudflare Worker backend) to process and deliver stunning AI-enhanced headshots.
@@ -37,6 +39,8 @@ The project features a modern Glassmorphism frontend and integrates seamlessly w
 
 <a id="chinese"></a>
 ## 中文
+
+![Auralis UI Preview](./docs/ui_preview.png)
 
 Auralis 是一个极致优雅的开源 AI 证件照与形象照生成平台。用户可以直接在浏览器中生成专业的证件照和商务形象照，再也不用特意跑去照相馆。
 
