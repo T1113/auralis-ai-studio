@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#fdfdff">
+    <title>上传照片 · Auralis 曜临</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../assets/css/system.css">
+    <link rel="stylesheet" href="./_mobile.css">
+
+    <style>
+        .step-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--color-surface-elevated);
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            font-weight: var(--weight-medium);
+        }
+
+        .upload-zone {
+            position: relative;
+            border: 1.5px dashed var(--color-border-strong);
+            border-radius: var(--radius-lg);
+            background: var(--color-surface-subtle);
+            padding: 28px 16px;
+            text-align: center;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .upload-zone.is-dragover {
+            border-color: var(--color-text-primary);
+            background: var(--color-surface-elevated);
+        }
+        .upload-zone__icon {
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+        .upload-zone__title {
+            font-size: 15px;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 4px;
+        }
+        .upload-zone__hint {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+        .upload-zone__actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+            justify-content: center;
+        }
+        .upload-zone__btn {
+            min-height: 40px;
+            padding: 8px 14px;
+            font-size: 14px;
+            background: var(--color-surface-pure);
+            border: 1px solid var(--color-border-strong);
+            border-radius: var(--radius-md);
+            color: var(--color-text-primary);
+            cursor: pointer;
+        }
+        .upload-zone__btn--primary {
+            background: var(--color-brand-primary);
+            color: var(--color-text-inverse);
+            border-color: var(--color-brand-primary);
+        }
+
+        .photo-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+            gap: 8px;
+        }
+        .photo-card {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--color-surface-subtle);
+        }
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .photo-card__remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(23, 24, 28, 0.7);
+            color: var(--color-text-inverse);
+            border: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .photo-card__status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(252, 252, 253, 0.7);
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            font-weight: var(--weight-medium);
+        }
+        .photo-card[data-status="error"] { border: 1px solid var(--color-status-error); }
+        .photo-card[data-status="error"] .photo-card__status { color: var(--color-status-error); }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .style-card {
+            padding: 12px;
+            border: 1.5px solid var(--color-border-subtle);
+            background: var(--color-surface-pure);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .style-card.is-selected {
+            border-color: var(--color-text-primary);
+            background: var(--color-surface-subtle);
+        }
+        .style-card__title {
+            font-size: 14px;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 2px;
+        }
+        .style-card__desc {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            line-height: 1.4;
+        }
+
+        .tips {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .tip {
+            padding: 12px;
+            background: var(--color-surface-subtle);
+            border-radius: var(--radius-md);
+        }
+        .tip__title {
+            font-size: 13px;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 6px;
+        }
+        .tip__list {
+            list-style: none;
+            font-size: 12.5px;
+            color: var(--color-text-secondary);
+            line-height: 1.55;
+        }
+
+        .cta-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .cta-counter {
+            flex: 1;
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+        .cta-counter strong {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-semibold);
+        }
+    </style>
+</head>
+<body>
+    <div class="m-page">
+        <header class="m-header">
+            <a href="./index.html" class="m-header__back" aria-label="返回">‹</a>
+            <span class="m-header__title">上传照片</span>
+            <span class="step-indicator">1 / 3</span>
+        </header>
+
+        <main class="m-content">
+            <input type="file" id="file-input" multiple accept="image/*,.heic,.heif" hidden>
+            <input type="file" id="camera-input" accept="image/*" capture="user" hidden>
+
+            <section class="m-section" style="padding-top:0;">
+                <h1 class="m-h1" style="margin-bottom:8px;">几张自拍即可</h1>
+                <p class="m-body" style="margin-bottom:20px;">建议 1-5 张清晰、单人、正脸的自拍照。</p>
+
+                <div class="upload-zone" id="upload-zone">
+                    <div class="upload-zone__icon">📷</div>
+                    <div class="upload-zone__title">上传或拍摄自拍</div>
+                    <div class="upload-zone__hint">支持 JPG · PNG · HEIC · 最大 12 MB</div>
+                    <div class="upload-zone__actions">
+                        <button type="button" class="upload-zone__btn" id="btn-pick">从相册</button>
+                        <button type="button" class="upload-zone__btn upload-zone__btn--primary" id="btn-capture">拍摄</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="m-section" id="photo-section" hidden>
+                <div class="m-section__title">已上传 <span id="photo-count">0</span> 张</div>
+                <div class="photo-strip" id="photo-strip"></div>
+            </section>
+
+            <section class="m-section">
+                <div class="m-section__title">选择风格</div>
+                <div class="style-grid" id="style-grid">
+                    <button type="button" class="style-card is-selected" data-style="business" data-summary="商务正装">
+                        <div class="style-card__title">商务正装</div>
+                        <div class="style-card__desc">深色西装 · 简洁背景</div>
+                    </button>
+                    <button type="button" class="style-card" data-style="linkedin" data-summary="领英简约">
+                        <div class="style-card__title">领英简约</div>
+                        <div class="style-card__desc">浅灰背景 · 衬衫</div>
+                    </button>
+                    <button type="button" class="style-card" data-style="natural" data-summary="自然亲和">
+                        <div class="style-card__title">自然亲和</div>
+                        <div class="style-card__desc">户外光 · 休闲</div>
+                    </button>
+                    <button type="button" class="style-card" data-style="creative" data-summary="设计师">
+                        <div class="style-card__title">设计师</div>
+                        <div class="style-card__desc">黑色背景 · 简练</div>
+                    </button>
+                </div>
+            </section>
+
+            <section class="m-section">
+                <div class="m-section__title">小贴士</div>
+                <div class="tips">
+                    <div class="tip">
+                        <div class="tip__title" style="color: var(--color-status-success);">✓ 建议</div>
+                        <ul class="tip__list">
+                            <li>单人正脸</li>
+                            <li>光线明亮</li>
+                            <li>无遮挡</li>
+                        </ul>
+                    </div>
+                    <div class="tip">
+                        <div class="tip__title" style="color: var(--color-status-error);">✗ 避免</div>
+                        <ul class="tip__list">
+                            <li>多人合照</li>
+                            <li>重度滤镜</li>
+                            <li>背光阴暗</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <div class="m-cta-dock">
+            <div class="cta-row">
+                <div class="cta-counter">已添加 <strong id="upload-counter">0</strong> / 5 张</div>
+                <button class="m-btn m-btn--primary" id="btn-next" disabled>开始生成</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        const MAX_FILES = 5;
+        const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+        const ALLOWED = /\.(jpe?g|png|webp|heic|heif)$/i;
+
+        const showToast = (m, t) => window.ImpeccableApp && window.ImpeccableApp.showToast
+            ? window.ImpeccableApp.showToast(m, t) : alert(m);
+
+        // ---- Upload queue ----
+        let queue = (window.ImpeccableApp && window.ImpeccableApp.getUploadQueue
+            ? window.ImpeccableApp.getUploadQueue()
+            : []) || [];
+
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const cameraInput = document.getElementById('camera-input');
+        const photoSection = document.getElementById('photo-section');
+        const photoStrip = document.getElementById('photo-strip');
+        const photoCount = document.getElementById('photo-count');
+        const counter = document.getElementById('upload-counter');
+        const btnNext = document.getElementById('btn-next');
+
+        document.getElementById('btn-pick').addEventListener('click', () => fileInput.click());
+        document.getElementById('btn-capture').addEventListener('click', () => cameraInput.click());
+
+        ['dragenter','dragover'].forEach(e => uploadZone.addEventListener(e, ev => {
+            ev.preventDefault(); ev.stopPropagation();
+            uploadZone.classList.add('is-dragover');
+        }));
+        ['dragleave','drop'].forEach(e => uploadZone.addEventListener(e, ev => {
+            ev.preventDefault(); ev.stopPropagation();
+            uploadZone.classList.remove('is-dragover');
+        }));
+        uploadZone.addEventListener('drop', ev => handleFiles(ev.dataTransfer.files));
+
+        fileInput.addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+        cameraInput.addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+
+        function isAllowed(file) {
+            return file && (ALLOWED.test(file.name) || (file.type && file.type.startsWith('image/')));
+        }
+
+        async function handleFiles(files) {
+            const incoming = Array.from(files || []).filter(isAllowed);
+            if (incoming.length === 0) {
+                showToast('请选择 JPG、PNG、HEIC 等图片。', 'error');
+                return;
+            }
+            if (incoming.some(f => f.size > MAX_FILE_SIZE_BYTES)) {
+                showToast('单张照片不能超过 12 MB。', 'error');
+                return;
+            }
+            const active = queue.filter(q => q.status !== 'error').length;
+            const remaining = MAX_FILES - active;
+            if (remaining <= 0) {
+                showToast('最多 5 张。', 'error');
+                return;
+            }
+            const accepted = incoming.slice(0, remaining);
+            if (accepted.length < incoming.length) {
+                showToast('已达 5 张上限，仅添加前 ' + accepted.length + ' 张。', 'info');
+            }
+
+            const pending = accepted.map(f => ({
+                id: 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                name: f.name,
+                status: 'uploading',
+                url: URL.createObjectURL(f),
+            }));
+            queue = queue.concat(pending);
+            render();
+
+            const form = new FormData();
+            accepted.forEach(f => form.append('files', f));
+
+            try {
+                const response = await window.ImpeccableApp.apiFetch('/api/uploads', {
+                    method: 'POST',
+                    body: form
+                });
+                pending.forEach((item, i) => {
+                    const remote = response.uploads[i];
+                    if (!remote) {
+                        item.status = 'error';
+                        item.errorMsg = '上传未完成';
+                        return;
+                    }
+                    item.id = remote.id;
+                    item.name = remote.name;
+                    item.url = remote.previewUrl;
+                    item.status = 'success';
+                });
+                persist();
+                render();
+            } catch (err) {
+                pending.forEach(item => {
+                    item.status = 'error';
+                    item.errorMsg = (err && err.message) || '上传失败';
+                });
+                render();
+                showToast(err.message || '上传失败，请稍后再试。', 'error');
+            }
+        }
+
+        function persist() {
+            const ok = queue.filter(q => q.status === 'success')
+                .map(q => ({ id: q.id, name: q.name, status: q.status, url: q.url }));
+            if (window.ImpeccableApp && window.ImpeccableApp.setUploadQueue) {
+                window.ImpeccableApp.setUploadQueue(ok);
+            }
+        }
+
+        function render() {
+            photoStrip.innerHTML = '';
+            let ok = 0;
+            queue.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'photo-card';
+                el.dataset.status = item.status;
+                el.innerHTML = `
+                    <img src="${item.url}" alt="">
+                    <button type="button" class="photo-card__remove" data-id="${item.id}" aria-label="删除">×</button>
+                    ${item.status !== 'success' ? `<div class="photo-card__status">${item.status === 'uploading' ? '上传中…' : '失败'}</div>` : ''}
+                `;
+                photoStrip.appendChild(el);
+                if (item.status === 'success') ok++;
+            });
+            photoCount.textContent = ok;
+            counter.textContent = ok;
+            photoSection.hidden = queue.length === 0;
+            btnNext.disabled = ok < 1;
+        }
+
+        photoStrip.addEventListener('click', e => {
+            const btn = e.target.closest('.photo-card__remove');
+            if (!btn) return;
+            const id = btn.dataset.id;
+            queue = queue.filter(q => q.id !== id);
+            persist();
+            render();
+        });
+
+        // ---- Style selection ----
+        const styleGrid = document.getElementById('style-grid');
+        let selectedStyle = { id: 'business', summary: '商务正装' };
+        styleGrid.addEventListener('click', e => {
+            const card = e.target.closest('.style-card');
+            if (!card) return;
+            styleGrid.querySelectorAll('.style-card').forEach(c => c.classList.remove('is-selected'));
+            card.classList.add('is-selected');
+            selectedStyle = { id: card.dataset.style, summary: card.dataset.summary };
+        });
+
+        // ---- Submit job ----
+        btnNext.addEventListener('click', async () => {
+            const valid = queue.filter(q => q.status === 'success');
+            if (valid.length < 1) {
+                showToast('请先上传 1 张照片。', 'error');
+                return;
+            }
+            btnNext.disabled = true;
+            const orig = btnNext.textContent;
+            btnNext.textContent = '提交中…';
+            try {
+                const result = await window.ImpeccableApp.apiFetch('/api/jobs', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        uploadIds: valid.map(v => v.id),
+                        styleConfig: { templateId: selectedStyle.id, summary: selectedStyle.summary },
+                        styleSummary: selectedStyle.summary,
+                        packageTier: '标准包',
+                        amountCents: 0
+                    })
+                });
+                sessionStorage.setItem('impeccable_current_job_id', result.jobId);
+                window.location.href = './generating.html?jobId=' + encodeURIComponent(result.jobId);
+            } catch (err) {
+                btnNext.disabled = false;
+                btnNext.textContent = orig;
+                showToast(err.message || '提交失败，请稍后再试。', 'error');
+            }
+        });
+
+        // ---- Init ----
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.ImpeccableApp && window.ImpeccableApp.syncSession) {
+                const session = await window.ImpeccableApp.syncSession();
+                if (!session.authenticated) {
+                    window.location.href = './login.html';
+                    return;
+                }
+            }
+            render();
+        });
+    </script>
+</body>
+</html>

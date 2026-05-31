@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成中 - AI 职业形象照</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="./assets/css/system.css">
+    <link rel="stylesheet" href="./assets/css/layout.css">
+    <link rel="stylesheet" href="./assets/css/components.css">
+    <link rel="stylesheet" href="./assets/css/mobile.css">
+
+    <style>
+        body, html { height: 100%; margin: 0; }
+
+        .loader-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-32) var(--space-16);
+            background-color: var(--color-surface-subtle);
+        }
+
+        .gen-card {
+            width: min(980px, 100%);
+            background: #fff;
+            border-radius: 24px;
+            border: 1px solid #e6e9f0;
+            box-shadow: 0 20px 60px rgba(16, 24, 40, 0.06);
+            padding: var(--space-32);
+            display: grid;
+            grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+            gap: var(--space-32);
+            align-items: start;
+        }
+
+        @media (max-width: 720px) {
+            .gen-card {
+                grid-template-columns: 1fr;
+                padding: var(--space-24);
+                gap: var(--space-24);
+            }
+        }
+
+        /* Reference photo with calming scan */
+        .ref-stage {
+            position: relative;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #eef1f6;
+            aspect-ratio: 3/4;
+            width: 100%;
+            min-width: 0;
+            max-height: 520px;
+            box-shadow: 0 12px 32px rgba(16, 24, 40, 0.10);
+        }
+
+        .ref-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            display: block;
+            filter: saturate(0.92);
+        }
+
+        .ref-scan {
+            position: absolute;
+            left: 0; right: 0;
+            height: 56px;
+            background: linear-gradient(180deg,
+                rgba(26, 86, 219, 0) 0%,
+                rgba(26, 86, 219, 0.18) 45%,
+                rgba(26, 86, 219, 0.32) 50%,
+                rgba(26, 86, 219, 0.18) 55%,
+                rgba(26, 86, 219, 0) 100%);
+            box-shadow: 0 0 24px rgba(26, 86, 219, 0.35);
+            animation: scanY 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanY {
+            0%   { top: -8%; opacity: 0.0; }
+            12%  { opacity: 1.0; }
+            88%  { opacity: 1.0; }
+            100% { top: 100%; opacity: 0.0; }
+        }
+
+        .ref-corner {
+            position: absolute;
+            width: 22px; height: 22px;
+            border: 2px solid rgba(255, 255, 255, 0.9);
+        }
+        .ref-corner.tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
+        .ref-corner.tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
+        .ref-corner.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
+        .ref-corner.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
+
+        .ref-badge {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.78);
+            color: #fff;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            padding: 6px 12px;
+            border-radius: 999px;
+            backdrop-filter: blur(6px);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .ref-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: #4ade80;
+            box-shadow: 0 0 8px #4ade80;
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            50% { opacity: 0.4; }
+        }
+
+        /* Right panel */
+        .gen-panel {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-20);
+            min-width: 0;
+        }
+
+        .gen-title {
+            font-size: 1.65rem;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin: 0;
+            line-height: 1.25;
+        }
+
+        .gen-sub {
+            margin: 4px 0 0;
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+        }
+
+        /* Progress */
+        .progress-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: var(--space-8);
+        }
+
+        .progress-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+        }
+
+        .progress-line strong {
+            color: var(--color-text-primary);
+            font-feature-settings: 'tnum';
+            font-weight: var(--weight-semibold);
+        }
+
+        .progress-track {
+            position: relative;
+            height: 6px;
+            background: #eef1f6;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            background: var(--color-brand-primary);
+            border-radius: 999px;
+            width: 0%;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+            transform: translateX(-100%);
+            animation: shimmer 1.8s linear infinite;
+        }
+
+        @keyframes shimmer {
+            to { transform: translateX(100%); }
+        }
+
+        /* Steps */
+        .steps {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: #f7f8fb;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .step.is-active {
+            background: var(--color-surface-elevated);
+            border-color: var(--color-border-strong);
+        }
+
+        .step.is-done {
+            background: var(--color-surface-subtle);
+            border-color: var(--color-border-subtle);
+        }
+
+        .step-dot {
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1.5px solid #d4d8e0;
+            flex: 0 0 22px;
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+
+        .step.is-active .step-dot {
+            border-color: var(--color-brand-primary);
+            background: var(--color-brand-primary);
+        }
+
+        .step.is-active .step-dot::after {
+            content: '';
+            position: absolute;
+            inset: -5px;
+            border-radius: 999px;
+            border: 2px solid oklch(0.20 0.005 260 / 0.25);
+            animation: ringPulse 1.4s ease-out infinite;
+        }
+
+        @keyframes ringPulse {
+            0%   { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+
+        .step.is-done .step-dot {
+            border-color: var(--color-brand-primary);
+            background: var(--color-brand-primary);
+        }
+
+        .step.is-done .step-dot svg {
+            width: 12px;
+            height: 12px;
+            stroke: #fff;
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .step-text {
+            flex: 1;
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+            line-height: 1.4;
+        }
+
+        .step.is-active .step-text,
+        .step.is-done .step-text {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-medium);
+        }
+
+        .step-meta {
+            font-size: 11px;
+            color: var(--color-text-tertiary);
+            font-feature-settings: 'tnum';
+        }
+
+        /* Trust line */
+        .trust-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: var(--space-12);
+        }
+
+        .trust-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: var(--color-text-secondary);
+            background: #f7f8fb;
+            border: 1px solid #e6e9f0;
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .trust-pill svg {
+            width: 12px;
+            height: 12px;
+            stroke: #16a34a;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .reassure {
+            margin-top: var(--space-12);
+            padding: 14px 16px;
+            background: #fbfcfe;
+            border: 1px solid #e6e9f0;
+            border-radius: 14px;
+            font-size: 12.5px;
+            color: var(--color-text-secondary);
+            line-height: 1.6;
+        }
+
+        .reassure strong {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-medium);
+        }
+
+        .error-banner {
+            display: none;
+            padding: 14px 16px;
+            background: #fff1f1;
+            border: 1px solid #fecaca;
+            border-radius: 14px;
+            color: #b91c1c;
+            font-size: var(--text-small);
+            line-height: 1.5;
+        }
+
+        .error-banner.is-visible {
+            display: block;
+        }
+
+        @media (max-width: 480px) {
+            .loader-page {
+                align-items: flex-start;
+                padding: var(--space-16);
+            }
+
+            .gen-card {
+                padding: var(--space-16);
+                border-radius: 18px;
+            }
+
+            .ref-stage {
+                max-height: 360px;
+            }
+
+            .step {
+                align-items: flex-start;
+            }
+
+            .step-meta {
+                white-space: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loader-page">
+        <div class="gen-card">
+            <!-- Left: reference photo with scanning effect -->
+            <div class="ref-stage" id="ref-stage">
+                <div class="ref-corner tl"></div>
+                <div class="ref-corner tr"></div>
+                <div class="ref-corner bl"></div>
+                <div class="ref-corner br"></div>
+                <div class="ref-scan"></div>
+                <div class="ref-badge">正在分析参考照</div>
+            </div>
+
+            <!-- Right: status panel -->
+            <div class="gen-panel">
+                <div>
+                    <h1 class="gen-title">正在为您生成职业形象照</h1>
+                    <p class="gen-sub" id="gen-sub">系统正在生成正式成片。您可以保留此页面，完成后会自动跳转到结果页。</p>
+                </div>
+
+                <div class="progress-wrap">
+                    <div class="progress-line">
+                        <span id="progress-label">正在初始化生成任务</span>
+                        <strong><span id="progress-percent">0</span>%</strong>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-line" style="margin-top: 2px;">
+                        <span id="elapsed-line">已用时 <strong>0</strong> 秒</span>
+                        <span id="eta-line">预计还需 <strong>—</strong> 秒</span>
+                    </div>
+                </div>
+
+                <ul class="steps" id="steps">
+                    <li class="step" data-step="0">
+                        <span class="step-dot"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>
+                        <span class="step-text">已确认照片与风格配置</span>
+                        <span class="step-meta" data-meta>—</span>
+                    </li>
+                    <li class="step" data-step="1">
+                        <span class="step-dot"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>
+                        <span class="step-text">已加密上传到生成服务</span>
+                        <span class="step-meta" data-meta>—</span>
+                    </li>
+                    <li class="step" data-step="2">
+                        <span class="step-dot"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>
+                        <span class="step-text">AI 正在重塑光影、服装与背景</span>
+                        <span class="step-meta" data-meta>—</span>
+                    </li>
+                    <li class="step" data-step="3">
+                        <span class="step-dot"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>
+                        <span class="step-text">叠加品牌水印与导出文件</span>
+                        <span class="step-meta" data-meta>—</span>
+                    </li>
+                    <li class="step" data-step="4">
+                        <span class="step-dot"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>
+                        <span class="step-text">整理结果，准备进入预览页</span>
+                        <span class="step-meta" data-meta>—</span>
+                    </li>
+                </ul>
+
+                <div class="trust-row">
+                    <span class="trust-pill"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>端到端加密传输</span>
+                    <span class="trust-pill"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>仅当前账号可见</span>
+                    <span class="trust-pill"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>不会用于训练</span>
+                </div>
+
+                <div class="reassure">
+                    <strong>请放心，我们正在持续处理你的任务。</strong>
+                    AI 不会更改你的真实身份特征，只会重塑专业棚拍光影、服装质感和背景。任何过程中的异常都会在此处实时告知。
+                </div>
+
+                <div id="error-banner" class="error-banner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./assets/js/app.js"></script>
+    <script>
+        const STEP_LABELS = [
+            "正在确认照片与风格配置",
+            "正在加密上传到生成服务",
+            "AI 正在重塑光影、服装与背景",
+            "正在叠加品牌水印与导出",
+            "正在整理结果"
+        ];
+        // Cumulative completion thresholds for each step (in %).
+        const STEP_THRESHOLDS = [10, 25, 70, 88, 98];
+
+        const progressFill = document.getElementById('progress-fill');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressLabel = document.getElementById('progress-label');
+        const elapsedLine = document.getElementById('elapsed-line');
+        const etaLine = document.getElementById('eta-line');
+        const refStage = document.getElementById('ref-stage');
+        const stepEls = Array.from(document.querySelectorAll('.step'));
+        const errorBanner = document.getElementById('error-banner');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentJobId = urlParams.get("jobId") || sessionStorage.getItem("impeccable_current_job_id");
+
+        let progress = 0;
+        let pollingTimer = null;
+        let tickTimer = null;
+        let redirected = false;
+        let startTs = Date.now();
+        let totalDuration = 90_000; // external generation usually takes tens of seconds
+        let referencePhotoMounted = false;
+
+        function setProgress(value) {
+            progress = Math.min(100, Math.max(progress, value));
+            progressFill.style.width = progress + '%';
+            progressPercent.innerText = Math.round(progress);
+
+            let activeStep = 0;
+            for (let i = 0; i < STEP_THRESHOLDS.length; i++) {
+                if (progress >= STEP_THRESHOLDS[i]) activeStep = i + 1;
+            }
+            stepEls.forEach((el, i) => {
+                el.classList.remove('is-active', 'is-done');
+                const meta = el.querySelector('[data-meta]');
+                if (i < activeStep) {
+                    el.classList.add('is-done');
+                    if (meta && meta.innerText === '—') meta.innerText = '完成';
+                } else if (i === activeStep) {
+                    el.classList.add('is-active');
+                    if (meta) meta.innerText = '进行中…';
+                }
+            });
+            const labelStep = Math.min(STEP_LABELS.length - 1, activeStep);
+            progressLabel.innerText = STEP_LABELS[labelStep];
+        }
+
+        function updateTimers(secondsRemaining) {
+            const elapsedSec = Math.max(0, Math.round((Date.now() - startTs) / 1000));
+            elapsedLine.innerHTML = '已用时 <strong>' + elapsedSec + '</strong> 秒';
+            if (typeof secondsRemaining === 'number' && secondsRemaining > 0) {
+                etaLine.innerHTML = '预计还需 <strong>' + secondsRemaining + '</strong> 秒';
+            } else if (progress >= 90) {
+                etaLine.innerHTML = '<strong>仍在生成，请继续等待…</strong>';
+            } else {
+                etaLine.innerHTML = '预计还需 <strong>—</strong> 秒';
+            }
+        }
+
+        function mountReferencePhoto(url) {
+            if (referencePhotoMounted || !url) return;
+            referencePhotoMounted = true;
+            const img = document.createElement('img');
+            img.className = 'ref-photo';
+            img.alt = '上传的参考照片';
+            img.src = url;
+            refStage.insertBefore(img, refStage.firstChild);
+        }
+
+        function showError(message) {
+            errorBanner.innerText = message;
+            errorBanner.classList.add('is-visible');
+        }
+
+        function goToResult() {
+            if (redirected) return;
+            redirected = true;
+            if (pollingTimer) clearInterval(pollingTimer);
+            if (tickTimer) clearInterval(tickTimer);
+            window.location.href = "result.html?batchId=" + encodeURIComponent(currentJobId);
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                await window.ImpeccableApp.requireAuth("login.html");
+            } catch (_error) {
+                return;
+            }
+
+            if (!currentJobId) {
+                window.location.href = "dashboard.html";
+                return;
+            }
+
+            sessionStorage.setItem("impeccable_current_job_id", currentJobId);
+            setProgress(4);
+            await refreshJobState();
+            pollingTimer = setInterval(refreshJobState, 1500);
+            // Smooth ticker so the bar feels alive between API polls.
+            tickTimer = setInterval(() => {
+                if (progress < 88) {
+                    const inc = Math.max(0.2, (88 - progress) * 0.014);
+                    setProgress(progress + inc);
+                }
+                updateTimers();
+            }, 600);
+        });
+
+        async function refreshJobState() {
+            try {
+                const response = await window.ImpeccableApp.apiFetch("/api/jobs/" + encodeURIComponent(currentJobId));
+                const job = response.job;
+                const hasReadyResults = Array.isArray(job.results)
+                    && job.results.some((result) => result.imageUrl && result.referenceOnly !== true);
+
+                const referencePhotos = job.sourcePhotos || job.uploads || [];
+                if (referencePhotos.length > 0) {
+                    mountReferencePhoto(referencePhotos[0].url || referencePhotos[0].previewUrl);
+                }
+
+                if (typeof job.previewReadyAt === 'number' && typeof job.createdAt === 'number') {
+                    const span = job.previewReadyAt - job.createdAt;
+                    if (span > 45000) totalDuration = span;
+                }
+
+                const elapsed = Math.max(0, Date.now() - (job.createdAt || startTs));
+                const computedProgress = Math.min(88, Math.round((elapsed / totalDuration) * 88));
+                setProgress(computedProgress);
+                updateTimers(job.secondsRemaining);
+
+                if (job.status === "failed") {
+                    if (pollingTimer) clearInterval(pollingTimer);
+                    if (tickTimer) clearInterval(tickTimer);
+                    const msg = (job.generation && job.generation.error) || "生成失败，请返回重新创建任务。";
+                    showError(msg);
+                    progressLabel.innerText = '生成未完成';
+                    return;
+                }
+
+                if (hasReadyResults || job.status === "preview" || job.status === "unlocked") {
+                    setProgress(100);
+                    progressLabel.innerText = '已完成，正在进入结果页…';
+                    setTimeout(goToResult, 350);
+                }
+            } catch (error) {
+                showError(error.message || "获取任务进度失败，正在重试…");
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,450 @@
+/* ==========================================================================
+   _mobile.css — Mobile-first layout primitives
+   Reuses tokens from ../assets/css/system.css. No new colors.
+   Loaded AFTER system.css to override the desktop clamp() typography that's
+   too large for 360–414px viewports.
+   ========================================================================== */
+
+/* Resets that the desktop CSS already does, repeated for safety */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+  background: var(--color-surface-pure);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-size: 16px;
+  line-height: 1.55;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* --- Mobile typography overrides --- */
+.m-h1 {
+  font-size: 1.5rem;        /* 24px */
+  line-height: 1.3;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.m-h2 {
+  font-size: 1.25rem;       /* 20px */
+  line-height: 1.3;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.m-h3 {
+  font-size: 1.0625rem;     /* 17px */
+  line-height: 1.35;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.m-body {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.m-small {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+/* --- Page shell --- */
+.m-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.m-content {
+  flex: 1;
+  padding: 16px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));  /* leave room for sticky CTA */
+}
+
+.m-content--no-cta {
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+}
+
+.m-section {
+  padding: 24px 0;
+}
+
+.m-section + .m-section {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.m-section__title {
+  font-size: 1.0625rem;
+  font-weight: var(--weight-semibold);
+  margin-bottom: 12px;
+  color: var(--color-text-primary);
+}
+
+/* --- Sticky header --- */
+.m-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: rgba(253, 253, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.m-header__logo {
+  font-size: 17px;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.m-header__logo small {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.06em;
+  font-weight: var(--weight-medium);
+}
+
+.m-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-header__title {
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.m-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-decoration: none;
+}
+
+.m-icon-btn:active {
+  background: var(--color-surface-elevated);
+}
+
+.m-header__back {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 22px;
+  cursor: pointer;
+  margin-left: -10px;  /* visual alignment with content padding */
+  text-decoration: none;
+}
+
+.m-header__back:active {
+  background: var(--color-surface-elevated);
+}
+
+/* --- Buttons --- */
+.m-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: transform 0.1s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.m-btn:active {
+  transform: scale(0.98);
+}
+
+.m-btn--primary {
+  background: var(--color-brand-primary);
+  color: var(--color-text-inverse);
+}
+
+.m-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.m-btn--secondary {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+}
+
+.m-btn--ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.m-btn--ghost:active {
+  background: var(--color-surface-subtle);
+}
+
+.m-btn--block {
+  width: 100%;
+}
+
+/* --- Sticky bottom CTA dock --- */
+.m-cta-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(253, 253, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--color-border-subtle);
+  z-index: 40;
+}
+
+/* --- Cards --- */
+.m-card {
+  background: var(--color-surface-pure);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.m-card--flat {
+  background: var(--color-surface-subtle);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+/* --- Pills / Badges --- */
+.m-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.m-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-status-success);
+  flex: 0 0 auto;
+}
+
+/* --- Inputs --- */
+.m-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-size: 16px;       /* >= 16px prevents iOS auto-zoom */
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  color: var(--color-text-primary);
+  background: var(--color-surface-pure);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.m-input:focus {
+  outline: none;
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0 0 3px rgba(23, 24, 28, 0.08);
+}
+
+.m-label {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+/* --- Stack helpers --- */
+.m-stack-8 > * + * { margin-top: 8px; }
+.m-stack-12 > * + * { margin-top: 12px; }
+.m-stack-16 > * + * { margin-top: 16px; }
+.m-stack-24 > * + * { margin-top: 24px; }
+
+/* --- Horizontal scroller --- */
+.m-hscroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.m-hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.m-hscroll > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+/* --- 2-column grid --- */
+.m-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* --- Divider with label --- */
+.m-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.m-divider::before,
+.m-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-subtle);
+}
+
+/* --- Toast (mirrors components.css so showToast works without that stylesheet) --- */
+.toast-host {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(253, 253, 255, 0.96);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.toast-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.toast-success .toast-icon { color: var(--color-status-success); }
+.toast-error   .toast-icon { color: var(--color-status-error); }
+.toast-warning .toast-icon { color: var(--color-status-warning); }
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

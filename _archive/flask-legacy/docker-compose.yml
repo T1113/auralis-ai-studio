@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    image: impeccable-app:latest
+    container_name: impeccable-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:5001:5001"
+    volumes:
+      - ./private_media:/app/private_media
+      - ./impeccable.db:/app/impeccable.db
+      - ./wechatpay_certs:/app/wechatpay_certs:ro
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: impeccable-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    expose:
+      - "6379"
+
+volumes:
+  redis-data:

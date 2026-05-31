@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.db
+private_media/
+static/uploads/
+static/generated/
+cloudflare-worker/.dev.vars
+cloudflare-worker/.wrangler/
+cloudflare-worker/node_modules/
+flask.log
+flask.err
+ngrok.log
+ngrok.err
+*.pid

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>确认与下单 - AI 职业形象照</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="./assets/css/system.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/layout.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/components.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/mobile.css?v=20260522b">
+
+    <style>
+        .workspace-layout { display: grid; grid-template-columns: 240px 1fr; gap: var(--space-48); min-height: calc(100vh - 80px); align-items: start; padding-top: var(--space-48); padding-bottom: var(--space-48); }
+        .steps-nav { position: sticky; top: 120px; }
+        .step-item { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-12) 0; color: var(--color-text-tertiary); font-weight: var(--weight-medium); }
+        .step-item.active { color: var(--color-text-primary); }
+        .step-item.done { color: var(--color-text-secondary); }
+        .step-number { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius-full); background-color: var(--color-surface-elevated); font-size: var(--text-small); }
+        .step-item.active .step-number { background-color: var(--color-text-primary); color: var(--color-surface-pure); }
+        .step-item.done .step-number { background-color: transparent; border: 1px solid var(--color-text-secondary); color: var(--color-text-secondary); }
+
+        .summary-block {
+            padding: var(--space-24);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-lg);
+            background-color: var(--color-surface-pure);
+            margin-bottom: var(--space-24);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-16) 0;
+            border-bottom: 1px solid var(--color-surface-elevated);
+        }
+        .summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .summary-row:first-child { padding-top: 0; }
+
+        .price-total {
+            font-size: var(--text-h2);
+            font-weight: var(--weight-semibold);
+            text-align: right;
+            margin-top: var(--space-16);
+            color: var(--color-text-primary);
+        }
+        
+        .trust-text {
+            font-size: var(--text-small);
+            color: var(--color-text-tertiary);
+            text-align: center;
+            margin-top: var(--space-16);
+        }
+        .payment-panel {
+            margin-top: var(--space-24);
+            padding: var(--space-24);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #f7fff9 0%, #ffffff 45%, #f6f8fb 100%);
+        }
+        .qr-box {
+            width: 168px;
+            height: 168px;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md);
+            background: #fff;
+            color: var(--color-text-secondary);
+            font-weight: var(--weight-semibold);
+            text-align: center;
+            overflow: hidden;
+        }
+        .qr-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: var(--space-8);
+        }
+        .payment-status-text {
+            margin-top: var(--space-12);
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+            max-width: 220px;
+        }
+        .generation-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            display: none;
+            place-items: center;
+            padding: var(--space-24);
+            background: oklch(0.985 0.004 255 / 0.94);
+            backdrop-filter: blur(14px);
+        }
+        .generation-overlay.is-visible {
+            display: grid;
+        }
+        .generation-overlay-panel {
+            width: min(560px, 92vw);
+            display: grid;
+            gap: var(--space-24);
+            text-align: center;
+        }
+        .generation-orbit {
+            width: 96px;
+            height: 96px;
+            margin: 0 auto;
+            border-radius: 999px;
+            border: 1px solid var(--color-border-subtle);
+            position: relative;
+            background: oklch(0.995 0.002 255);
+        }
+        .generation-orbit::before,
+        .generation-orbit::after {
+            content: "";
+            position: absolute;
+            inset: 14px;
+            border-radius: inherit;
+            border: 2px solid transparent;
+            border-top-color: var(--color-text-primary);
+            animation: spin 1.1s linear infinite;
+        }
+        .generation-orbit::after {
+            inset: 28px;
+            border-top-color: #1a2cff;
+            animation-duration: 1.8s;
+            animation-direction: reverse;
+        }
+        .generation-overlay h2 {
+            margin: 0;
+            font-size: var(--text-h2);
+        }
+        .generation-overlay p {
+            margin: 0;
+            color: var(--color-text-secondary);
+            line-height: 1.7;
+        }
+        .generation-overlay-steps {
+            display: grid;
+            gap: var(--space-8);
+            text-align: left;
+            color: var(--color-text-secondary);
+            font-size: var(--text-small);
+        }
+        .generation-overlay-steps span {
+            padding: var(--space-12) var(--space-16);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md);
+            background: oklch(0.995 0.002 255);
+            animation: breathe 2.4s ease-in-out infinite;
+        }
+        .generation-overlay-steps span:nth-child(2) { animation-delay: .25s; }
+        .generation-overlay-steps span:nth-child(3) { animation-delay: .5s; }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes breathe {
+            50% { border-color: var(--color-border-strong); transform: translateY(-1px); }
+        }
+
+        @media (max-width: 768px) {
+            .workspace-layout { grid-template-columns: 1fr; gap: var(--space-24); padding-top: var(--space-16); padding-bottom: 32px; }
+            .steps-nav { display: flex; overflow-x: auto; position: relative; top: 0; padding-bottom: var(--space-8); border-bottom: 1px solid var(--color-border-subtle); }
+            .step-item { flex-shrink: 0; padding: var(--space-8) var(--space-12); }
+        }
+
+        /* 三档套餐卡片 */
+        .package-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-16);
+        }
+        @media (max-width: 720px) { .package-list { grid-template-columns: 1fr; } }
+        .pkg-card {
+            position: relative;
+            border: 2px solid #e6e9f0;
+            border-radius: var(--radius-md);
+            padding: 18px 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+        }
+        .pkg-card:hover { border-color: #c4cad6; }
+        .pkg-card.is-selected {
+            border-color: var(--color-text-primary);
+            box-shadow: 0 18px 40px rgba(16, 24, 40, 0.10);
+            transform: translateY(-2px);
+        }
+        .pkg-card.is-popular::before {
+            content: '最受欢迎';
+            position: absolute;
+            top: -10px;
+            right: 14px;
+            background: var(--color-text-primary);
+            color: white;
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            padding: 3px 10px;
+            border-radius: 999px;
+        }
+        .pkg-card .pkg-name { font-size: 1rem; font-weight: 600; margin: 0; }
+        .pkg-card .pkg-tag { font-size: 11px; color: var(--color-text-tertiary); margin: 2px 0 12px; }
+        .pkg-card .pkg-price { font-size: 1.5rem; font-weight: 700; color: var(--color-text-primary); font-feature-settings: 'tnum'; }
+        .pkg-card .pkg-orig { font-size: 12px; color: var(--color-text-tertiary); text-decoration: line-through; margin-bottom: 10px; }
+        .pkg-card ul { list-style: none; padding: 0; margin: 10px 0 0; }
+        .pkg-card li { padding: 3px 0; font-size: 12px; color: var(--color-text-secondary); display: flex; gap: 6px; }
+        .pkg-card li::before { content: '✓'; color: #16a34a; flex: 0 0 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="generation-overlay" id="generation-overlay" role="status" aria-live="polite">
+        <div class="generation-overlay-panel">
+            <div class="generation-orbit" aria-hidden="true"></div>
+            <div>
+                <h2>正在创建生成任务</h2>
+                <p>系统正在提交照片和风格配置。完成后会自动进入生成进度页，请不要关闭页面。</p>
+            </div>
+            <div class="generation-overlay-steps" aria-hidden="true">
+                <span>校验上传照片</span>
+                <span>提交豆包图像生成任务</span>
+                <span>准备水印和结果导出流程</span>
+            </div>
+        </div>
+    </div>
+
+    <nav class="header-sticky" style="height: 64px; display: flex; align-items: center; border-bottom: 1px solid var(--color-border-subtle);">
+        <div class="container flex-row justify-between w-100" style="width: 100%;">
+            <a href="index.html" style="font-weight: var(--weight-semibold); font-size: 1.1rem; color: var(--color-text-primary);">Auralis<span style="color:var(--color-text-secondary); margin-left: 6px; font-size: .82em; letter-spacing: .08em;">曜临</span></a>
+            <span style="font-size: var(--text-small); color: var(--color-text-tertiary);">订单安全加密</span>
+        </div>
+    </nav>
+
+    <div class="container workspace-layout">
+        
+        <aside class="steps-nav">
+            <div class="step-item done"><div class="step-number">✓</div><span>上传照片</span></div>
+            <div class="step-item done"><div class="step-number">✓</div><span>选择风格</span></div>
+            <div class="step-item active"><div class="step-number">3</div><span>确认信息</span></div>
+            <div class="step-item"><div class="step-number">4</div><span>结果生成</span></div>
+        </aside>
+
+        <main class="content-area">
+            <div class="mb-lg">
+                <h1 class="mb-sm" style="font-size: var(--text-h2);">确认信息并开始生成</h1>
+                <p style="margin: 0;" id="checkout-intro">请最后检查你的生成配置。</p>
+            </div>
+
+            <div class="summary-block">
+                <div class="summary-row">
+                    <span style="color: var(--color-text-secondary);">已上传照片对象</span>
+                    <span style="font-weight: var(--weight-medium);" id="checkout-upload-summary"><span class="badge">正在读取上传队列...</span></span>
+                </div>
+                <div class="summary-row">
+                    <span style="color: var(--color-text-secondary);">影像风格解析</span>
+                    <span style="font-weight: var(--weight-medium); text-align: right;" id="checkout-style-summary"><span style="color:var(--color-text-tertiary); font-size: var(--text-small);">正在读取风格配置...</span></span>
+                </div>
+                <div class="summary-row">
+                    <span style="color: var(--color-text-secondary);">套餐权益</span>
+                    <span style="font-weight: var(--weight-medium); text-align: right;" id="checkout-package-summary"><span style="color:var(--color-text-tertiary); font-size: var(--text-small);">正在统计生成数量...</span></span>
+                </div>
+                <div class="summary-row" style="background-color: var(--color-surface-subtle); margin: var(--space-16) -var(--space-24) -var(--space-24); padding: var(--space-24); border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+                    <div style="width: 100%;">
+                        <div class="flex-row justify-between mb-sm">
+                            <span style="color: var(--color-text-secondary);">本次生成费用</span>
+                            <span class="price-total" style="margin-top: 0;" id="checkout-price">免费</span>
+                        </div>
+                        <div class="flex-row justify-between mb-sm" style="font-size: var(--text-small); color: var(--color-text-secondary);">
+                            <span>试运行状态</span>
+                            <span id="checkout-credits">免费开放</span>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%; margin-top: var(--space-16);" id="checkout-submit-btn" onclick="beginCheckout()">开始生成</button>
+                        <div class="trust-text">每个任务包含 2 次免费重绘机会。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="payment-panel" id="wechat-payment-panel" style="display: none;">
+                <div style="margin-bottom: var(--space-24);">
+                    <div class="badge badge-success mb-sm">微信支付</div>
+                    <h2 style="font-size: var(--text-h3); margin-bottom: var(--space-8);">选择套餐充值积分</h2>
+                    <p style="margin: 0; color: var(--color-text-secondary);" id="payment-panel-copy">每次生成消耗 100 积分。一次充值多次使用，包越大单次成本越低。</p>
+                </div>
+
+                <div id="package-list" class="package-list">
+                    <!-- JS 渲染套餐卡片 -->
+                </div>
+
+                <div class="flex-row justify-between align-start" style="gap: var(--space-24); margin-top: var(--space-24); flex-wrap: wrap;">
+                    <div style="font-size: var(--text-small); color: var(--color-text-secondary); flex: 1; min-width: 240px;">
+                        <strong style="color: var(--color-text-primary);" id="selected-package-label">已选：标准包</strong><br>
+                        <span id="selected-package-detail">¥99.00 · 4 次生成 / 16 张成片</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <div class="qr-box" id="wechat-qr-box">待创建<br>支付码</div>
+                        <div class="payment-status-text" id="payment-status-text">点击下方按钮创建微信支付订单。</div>
+                        <button class="btn btn-primary" style="margin-top: var(--space-12); width: 100%;" id="wechat-pay-btn" onclick="createWeChatPayment()">微信支付充值</button>
+                        <button class="btn btn-ghost" style="margin-top: var(--space-8); width: 100%; display: none;" id="mock-confirm-btn" onclick="confirmMockPayment()">本地模拟已支付</button>
+                    </div>
+                </div>
+            </div>
+            
+            <a href="style.html" class="btn btn-ghost" style="display: block; text-align: center;">返回修改风格</a>
+
+        </main>
+    </div>
+    <script src="./assets/js/app.js"></script>
+    <script>
+        let publicConfig = null;
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const [session, config] = await Promise.all([
+                    window.ImpeccableApp.requireAuth("login.html"),
+                    window.ImpeccableApp.apiFetch("/api/config")
+                ]);
+                window.currentSession = session;
+                publicConfig = config;
+                const billing = config.billing || {};
+                const freeTrial = config.environment && config.environment.freeTrialMode;
+                const credits = session.user && Number(session.user.credits || 0);
+                const cost = Number(billing.generationCostCredits || 0);
+
+                document.getElementById("checkout-credits").innerText = billing.enabled ? `${credits} 积分（本次扣 ${cost} 积分）` : "免费开放";
+                document.getElementById("checkout-price").innerText = freeTrial || !billing.enabled ? "免费" : `${cost} 积分`;
+
+                const intro = document.getElementById("checkout-intro");
+                if (intro) {
+                    intro.innerText = freeTrial
+                        ? "请最后检查你的生成配置。当前为免费试运行，提交后会直接创建生成任务。"
+                        : (billing.enabled && credits < cost
+                            ? "请最后检查你的生成配置。当前积分不足，需要先充值再生成。"
+                            : "请最后检查你的生成配置。提交后会从你的积分余额扣除本次生成费用。");
+                }
+
+                hydrateCheckoutSummary();
+                hydratePaymentPanel(config);
+            } catch (_error) {
+                // Redirect handled in helper.
+            }
+        });
+
+        let selectedPackageId = null;
+
+        function renderPackageList(packages) {
+            const list = document.getElementById("package-list");
+            if (!list || !Array.isArray(packages)) return;
+            list.innerHTML = packages.map((pkg) => {
+                const yuan = (pkg.amountCents / 100).toFixed(0);
+                const orig = pkg.originalAmountCents ? `<div class="pkg-orig">原价 ¥${(pkg.originalAmountCents/100).toFixed(0)}</div>` : '';
+                const popular = pkg.popular ? 'is-popular' : '';
+                const items = (pkg.features || []).map((f) => `<li>${escapeHtml(f)}</li>`).join('');
+                return `
+                    <div class="pkg-card ${popular}" data-package-id="${escapeHtml(pkg.id)}" onclick="selectPackage('${escapeHtml(pkg.id)}')">
+                        <p class="pkg-name">${escapeHtml(pkg.name)}</p>
+                        <p class="pkg-tag">${escapeHtml(pkg.tagline || '')}</p>
+                        <div class="pkg-price">¥${yuan}</div>
+                        ${orig}
+                        <ul>${items}</ul>
+                    </div>
+                `;
+            }).join('');
+
+            const defaultPkg = packages.find((p) => p.popular) || packages[0];
+            if (defaultPkg) selectPackage(defaultPkg.id);
+        }
+
+        function selectPackage(id) {
+            selectedPackageId = id;
+            document.querySelectorAll('.pkg-card').forEach((el) => {
+                el.classList.toggle('is-selected', el.dataset.packageId === id);
+            });
+            const pkg = (publicConfig && publicConfig.billing && publicConfig.billing.packages || []).find((p) => p.id === id);
+            if (pkg) {
+                const label = document.getElementById('selected-package-label');
+                const detail = document.getElementById('selected-package-detail');
+                if (label) label.innerText = `已选：${pkg.name}`;
+                if (detail) detail.innerText = `¥${(pkg.amountCents/100).toFixed(2)} · ${pkg.generations} 次生成 / ${pkg.generations * 4} 张成片`;
+            }
+        }
+
+        function hydratePaymentPanel(config) {
+            if (config.billing && config.billing.enabled === false) {
+                document.getElementById("wechat-payment-panel").style.display = "none";
+                return;
+            }
+            const payment = config.payment || {};
+            const payButton = document.getElementById("wechat-pay-btn");
+            const copy = document.getElementById("payment-panel-copy");
+            const status = document.getElementById("payment-status-text");
+
+            renderPackageList((config.billing && config.billing.packages) || []);
+
+            if (!payment.ready && !payment.mockEnabled) {
+                payButton.disabled = true;
+                payButton.innerText = "支付通道维护中";
+                copy.innerText = "支付通道暂未开放，请稍后再试。";
+                status.innerText = "如有疑问请联系客服。";
+                return;
+            }
+
+            if (payment.mockEnabled) {
+                copy.innerText = "当前为本地联调环境，可创建模拟订单验证充值与扣积分流程。";
+                status.innerText = "本地联调：创建订单后可使用模拟支付确认。";
+                return;
+            }
+
+            copy.innerText = "微信支付已开通。点击充值后会显示可扫码的真实支付二维码。";
+            status.innerText = "创建订单后使用微信扫码完成充值。";
+        }
+
+        function escapeHtml(value) {
+            return String(value || "").replace(/[&<>"']/g, (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+        }
+
+        function hydrateCheckoutSummary() {
+            const uploads = window.ImpeccableApp.getUploadQueue();
+            const styleConfig = window.ImpeccableApp.getStyleConfig() || {};
+
+            if (!uploads.length) {
+                window.location.href = "upload.html";
+                return;
+            }
+
+            const templateName = styleConfig.templateName || "标准职业形象照";
+            const summary = styleConfig.summary || "按所选构图 / 服装 / 背景生成";
+            const resultCount = Math.max(1, Number(styleConfig.resultCount) || 1);
+            const watermarkLine = styleConfig.watermarkEnabled === false
+                ? "无水印"
+                : (styleConfig.mainTitle || styleConfig.brandTitle || "默认水印");
+
+            document.getElementById("checkout-upload-summary").innerHTML = `<span class="badge">已存入队列 ${uploads.length} 张</span>`;
+            document.getElementById("checkout-style-summary").innerHTML = `${escapeHtml(templateName)}<br><span style="color:var(--color-text-tertiary); font-size: var(--text-small);">${escapeHtml(summary)}</span>`;
+            document.getElementById("checkout-package-summary").innerHTML = `${resultCount} 张结果输出<br><span style="color:var(--color-text-tertiary); font-size: var(--text-small);">水印：${escapeHtml(watermarkLine)}</span>`;
+        }
+
+        async function beginCheckout() {
+            const uploads = window.ImpeccableApp.getUploadQueue();
+            const styleConfig = window.ImpeccableApp.getStyleConfig();
+
+            if (!uploads.length) {
+                window.ImpeccableApp.showToast("请先上传照片后再继续。", "error");
+                window.location.href = "upload.html";
+                return;
+            }
+
+            const submitButton = document.getElementById("checkout-submit-btn");
+            submitButton.disabled = true;
+            submitButton.innerText = "正在创建生成任务...";
+            showGenerationOverlay(true);
+
+            try {
+                const result = await window.ImpeccableApp.apiFetch("/api/jobs", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        uploadIds: uploads.map((item) => item.id),
+                        styleConfig: styleConfig,
+                        styleSummary: styleConfig.summary || styleConfig.templateName || "标准职业形象照",
+                        packageTier: publicConfig && publicConfig.environment && publicConfig.environment.freeTrialMode ? "免费试运行" : "标准包",
+                        amountCents: 0
+                    })
+                });
+
+                sessionStorage.setItem("impeccable_current_job_id", result.jobId);
+                window.location.href = "generating.html?jobId=" + encodeURIComponent(result.jobId);
+            } catch (error) {
+                submitButton.disabled = false;
+                submitButton.innerText = "开始生成";
+                showGenerationOverlay(false);
+                window.ImpeccableApp.showToast(error.message || "创建订单失败，请稍后再试。", "error");
+            }
+        }
+
+        function showGenerationOverlay(visible) {
+            const overlay = document.getElementById("generation-overlay");
+            if (overlay) {
+                overlay.classList.toggle("is-visible", Boolean(visible));
+            }
+        }
+
+        let activePaymentOrderId = null;
+
+        async function createWeChatPayment() {
+            if (!selectedPackageId) {
+                window.ImpeccableApp.showToast("请先选择一个套餐。", "error");
+                return;
+            }
+            const payButton = document.getElementById("wechat-pay-btn");
+            payButton.disabled = true;
+            payButton.innerText = "正在创建微信支付订单...";
+
+            try {
+                const payment = await window.ImpeccableApp.apiFetch("/api/payments/wechat/prepay", {
+                    method: "POST",
+                    body: JSON.stringify({ packageId: selectedPackageId })
+                });
+                activePaymentOrderId = payment.orderId;
+                renderPaymentCode(payment);
+                document.getElementById("mock-confirm-btn").style.display = payment.mock ? "block" : "none";
+                payButton.innerText = payment.mock ? "已创建模拟订单" : "已创建支付码";
+                const yuan = (payment.amountCents / 100).toFixed(2);
+                document.getElementById("payment-status-text").innerText = payment.mock
+                    ? `本地模拟订单已创建（¥${yuan}）。`
+                    : `请使用微信扫描二维码完成 ¥${yuan} 付款。`;
+            } catch (error) {
+                payButton.disabled = false;
+                payButton.innerText = "微信支付充值";
+                window.ImpeccableApp.showToast(error.message || "微信支付下单失败。", "error");
+            }
+        }
+
+        function renderPaymentCode(payment) {
+            const box = document.getElementById("wechat-qr-box");
+            if (payment.mock) {
+                box.innerHTML = "模拟<br>微信支付";
+                return;
+            }
+            box.innerHTML = `<img src="${buildQrImageUrl(payment.codeUrl)}" alt="微信支付二维码">`;
+        }
+
+        function buildQrImageUrl(value) {
+            return "https://api.qrserver.com/v1/create-qr-code/?size=168x168&data=" + encodeURIComponent(value || "");
+        }
+
+        async function confirmMockPayment() {
+            if (!activePaymentOrderId) {
+                window.ImpeccableApp.showToast("请先创建支付订单。", "error");
+                return;
+            }
+
+            const result = await window.ImpeccableApp.apiFetch("/api/payments/wechat/mock-confirm", {
+                method: "POST",
+                body: JSON.stringify({ orderId: activePaymentOrderId })
+            });
+            window.currentSession = { authenticated: true, user: result.user };
+            document.getElementById("checkout-credits").innerText = `${result.user.credits || 0} 积分`;
+            document.getElementById("mock-confirm-btn").style.display = "none";
+            document.getElementById("wechat-pay-btn").innerText = "充值成功";
+            window.ImpeccableApp.showToast("充值成功，积分已到账。现在可以扣除积分开始生成。", "success");
+        }
+    </script>
+</body>
+</html>

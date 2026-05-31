@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 / 注册 - AI 职业形象照</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="./assets/css/system.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/layout.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/components.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/mobile.css?v=20260522b">
+
+    <style>
+        body {
+            background-color: var(--color-surface-subtle);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-24);
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 440px;
+            background-color: var(--color-surface-pure);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-border-subtle);
+            box-shadow: var(--shadow-lg);
+            padding: var(--space-48) var(--space-32);
+            position: relative;
+            overflow: hidden;
+            transition: height 0.3s ease;
+        }
+
+        .auth-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background-color: var(--color-text-primary); }
+        .auth-header { text-align: center; margin-bottom: var(--space-32); position: relative; }
+        .auth-logo { font-weight: var(--weight-semibold); font-size: 1.25rem; color: var(--color-text-primary); margin-bottom: var(--space-24); display: block; text-decoration: none; }
+
+        .btn-social {
+            width: 100%;
+            margin-bottom: var(--space-12);
+            background-color: var(--color-surface-pure);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-12);
+            height: 48px;
+            font-weight: var(--weight-medium);
+            position: relative;
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+        }
+        .btn-social:hover { background-color: #f7f8fb; border-color: #c2c8d2; }
+        .btn-social:active { transform: translateY(1px); }
+        .btn-social .social-icon {
+            width: 20px;
+            height: 20px;
+            flex: 0 0 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-social .social-icon svg { width: 100%; height: 100%; display: block; }
+        .btn-social.is-wechat:hover { border-color: #36ad4a; background: #f3fbf4; }
+        .social-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-12);
+            margin-bottom: var(--space-12);
+        }
+        .social-row .btn-social { margin-bottom: 0; }
+        .soon-tag {
+            position: absolute;
+            top: -8px;
+            right: 10px;
+            font-size: 10px;
+            font-weight: var(--weight-medium);
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #1f2937;
+            color: #fff;
+            letter-spacing: 0.04em;
+        }
+        .divider { display: flex; align-items: center; text-align: center; margin: var(--space-24) 0; color: var(--color-text-tertiary); font-size: var(--text-small); }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--color-border-subtle); }
+        .divider:not(:empty)::before { margin-right: var(--space-16); }
+        .divider:not(:empty)::after { margin-left: var(--space-16); }
+        .auth-footer { margin-top: var(--space-24); text-align: center; font-size: var(--text-small); color: var(--color-text-secondary); }
+        .auth-link { color: var(--color-text-primary); font-weight: var(--weight-medium); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+        .legal-text { font-size: 0.75rem; color: var(--color-text-tertiary); text-align: center; margin-top: var(--space-24); }
+        .legal-text a { color: #0b57d0; text-decoration: underline; text-underline-offset: 2px; }
+        .auth-subtitle { font-size: var(--text-small); color: var(--color-text-secondary); margin-top: var(--space-8); margin-bottom: 0; }
+
+        .auth-view { display: none; }
+        .auth-view.active { display: block; }
+        
+        .reg-step-view { display: none; animation: fadeIn 0.3s ease; }
+        .reg-step-view.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+        .form-floating {
+            position: relative;
+            margin-bottom: var(--space-16);
+            width: 100%;
+        }
+
+        .form-floating input {
+            width: 100%;
+            height: 56px;
+            padding: 24px 16px 8px 16px;
+            border: 1px solid var(--color-border-strong);
+            border-radius: var(--radius-md);
+            background-color: var(--color-surface-pure);
+            font-size: var(--text-body);
+            transition: all 0.2s ease;
+        }
+
+        .form-floating.has-password-toggle input {
+            padding-right: 52px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .password-toggle:hover,
+        .password-toggle:focus-visible {
+            background: var(--color-surface-subtle);
+            color: var(--color-text-primary);
+            outline: none;
+        }
+
+        .password-toggle svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .form-floating input:focus {
+            border-color: #0b57d0;
+            box-shadow: 0 0 0 1px #0b57d0;
+            outline: none;
+        }
+
+        .form-floating label {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: var(--text-body);
+            color: var(--color-text-secondary);
+            pointer-events: none;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            background-color: transparent;
+            padding: 0 4px;
+        }
+
+        .form-floating input:focus ~ label,
+        .form-floating input:not(:placeholder-shown) ~ label {
+            top: 14px;
+            font-size: 0.75rem;
+            color: #0b57d0;
+        }
+
+        .password-rules {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin: -4px 0 var(--space-16);
+            padding: 12px 14px;
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md);
+            background: var(--color-surface-subtle);
+        }
+
+        .password-rules-title {
+            margin: 0 0 2px;
+            font-size: 0.78rem;
+            line-height: 1.4;
+            color: var(--color-text-secondary);
+            font-weight: var(--weight-medium);
+        }
+
+        .password-rule {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            line-height: 1.35;
+            color: var(--color-text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .password-rule::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            border: 1px solid var(--color-border-strong);
+            background: var(--color-surface-pure);
+            flex: 0 0 auto;
+            transition: all 0.2s ease;
+        }
+
+        .password-rule.is-valid {
+            color: var(--color-text-primary);
+        }
+
+        .password-rule.is-valid::before {
+            border-color: var(--color-status-success);
+            background: var(--color-status-success);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+        }
+
+        .password-match-help {
+            margin: -2px 0 var(--space-16);
+            min-height: 18px;
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+        }
+
+        .password-match-help.is-error {
+            color: var(--color-status-error);
+        }
+
+        .password-match-help.is-valid {
+            color: var(--color-status-success);
+        }
+
+        .caps-lock-help {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin: -2px 0 var(--space-16);
+            padding: 10px 12px;
+            border: 1px solid rgba(180, 83, 9, 0.28);
+            border-radius: var(--radius-md);
+            background: rgba(245, 158, 11, 0.10);
+            color: #92400e;
+            font-size: 0.78rem;
+            line-height: 1.4;
+        }
+
+        .caps-lock-help.is-visible {
+            display: flex;
+        }
+
+        .caps-lock-help::before {
+            content: "A";
+            width: 20px;
+            height: 20px;
+            flex: 0 0 20px;
+            border-radius: 50%;
+            background: #92400e;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            font-weight: var(--weight-semibold);
+        }
+
+        /* Toast UI */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            background-color: var(--color-text-primary);
+            color: var(--color-surface-pure);
+            padding: 12px 24px;
+            border-radius: var(--radius-full);
+            font-size: var(--text-body);
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast-container.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        /* Modal UI for real functionality */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .modal-content {
+            background: white;
+            padding: var(--space-32);
+            border-radius: var(--radius-lg);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="auth-card">
+        <div class="auth-header">
+            <a href="index.html" class="auth-logo">Auralis<span style="color:var(--color-text-secondary); margin-left: 6px; font-size: .82em; letter-spacing: .08em;">曜临</span></a>
+            <h1 id="auth-title" style="font-size: var(--text-h3);">欢迎回来</h1>
+            <p id="auth-subtitle" class="auth-subtitle">登录以继续管理您的专属职业形象库</p>
+        </div>
+
+        <div id="global-toast" class="toast-container"></div>
+
+        <!-- Social Buttons (UI placeholder, will wire up real OAuth/QR later) -->
+        <div id="social-box">
+            <div class="social-row">
+                <a href="/api/auth/google/login" class="btn btn-social is-google">
+                    <span class="social-icon" aria-hidden="true">
+                        <svg viewBox="0 0 48 48">
+                            <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/>
+                            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/>
+                            <path fill="#4CAF50" d="M24 44c5.5 0 10.4-2.1 14.1-5.5l-6.5-5.5c-2.1 1.4-4.7 2.3-7.6 2.3-5.3 0-9.7-3.4-11.3-8L6 32.5C9.3 39 16.1 44 24 44z"/>
+                            <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.5c-.5.4 6.4-4.7 6.4-15.2 0-1.2-.1-2.4-.4-3.5z"/>
+                        </svg>
+                    </span>
+                    <span>Google 继续</span>
+                </a>
+                <button type="button" class="btn btn-social is-wechat" onclick="showToast('微信扫码通道正在接入中，敬请期待。', 'info')">
+                    <span class="soon-tag">即将开放</span>
+                    <span class="social-icon" aria-hidden="true">
+                        <svg viewBox="0 0 48 48">
+                            <path fill="#1AAD19" d="M19.6 7C10.9 7 4 12.9 4 20.2c0 4.1 2.2 7.8 5.7 10.2l-1.4 4.3 5-2.5c1.8.5 3.6.8 5.5.9l-.2-.9c-.4-1.2-.6-2.5-.6-3.7 0-7 6.6-12.7 14.7-12.7.4 0 .8 0 1.2.1C32.5 10.6 26.6 7 19.6 7zm-5.7 6.6a1.9 1.9 0 1 1 0 3.7 1.9 1.9 0 0 1 0-3.7zm11.4 0a1.9 1.9 0 1 1 0 3.7 1.9 1.9 0 0 1 0-3.7z"/>
+                            <path fill="#1AAD19" d="M44 28.5c0-6.1-6.1-11.1-13.5-11.1S17 22.4 17 28.5 23.1 39.6 30.5 39.6c1.6 0 3.1-.2 4.5-.6l4.4 2.2-1.2-3.7c3.5-2 5.8-5.2 5.8-9zm-18.4-2.7a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9.8 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                        </svg>
+                    </span>
+                    <span>微信扫码</span>
+                </button>
+            </div>
+            <div class="divider">或使用邮箱继续</div>
+        </div>
+
+        <!-- Login View -->
+        <div id="view-login" class="auth-view active">
+            <form id="login-form">
+                <div class="form-floating">
+                    <input type="email" id="login-email" placeholder=" " required>
+                    <label for="login-email">邮箱地址</label>
+                </div>
+                <div class="form-floating has-password-toggle" style="margin-bottom: var(--space-8);">
+                    <input type="password" id="login-pswd" placeholder=" " required>
+                    <label for="login-pswd">密码</label>
+                    <button type="button" class="password-toggle" data-password-toggle="login-pswd" aria-label="显示密码" aria-pressed="false"></button>
+                </div>
+                <div id="login-caps-lock-help" class="caps-lock-help" role="status" aria-live="polite">已开启大写锁定，密码区分大小写。</div>
+                <div style="text-align: right; margin-bottom: var(--space-16);">
+                    <a href="#" onclick="openForgotModal()" style="font-size: var(--text-small); color: #0b57d0; font-weight: var(--weight-medium); text-decoration: none;">忘记密码？</a>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">登录安全账户</button>
+            </form>
+            <div class="auth-footer">还没有账户？ <span class="auth-link" style="color: #0b57d0;" onclick="switchMainView('register')">注册账户</span></div>
+        </div>
+
+        <!-- Register View -->
+        <div id="view-register" class="auth-view">
+            <form id="register-form">
+                <div class="form-floating">
+                    <input type="text" id="reg-name" placeholder=" " required maxlength="40">
+                    <label for="reg-name">用户名 / 昵称</label>
+                </div>
+                <div class="form-floating">
+                    <input type="email" id="reg-email" placeholder=" " required>
+                    <label for="reg-email">邮箱地址</label>
+                </div>
+                <div class="form-floating has-password-toggle">
+                    <input type="password" id="reg-password" placeholder=" " required minlength="8" autocomplete="new-password">
+                    <label for="reg-password">密码</label>
+                    <button type="button" class="password-toggle" data-password-toggle="reg-password" aria-label="显示密码" aria-pressed="false"></button>
+                </div>
+                <div id="reg-caps-lock-help" class="caps-lock-help" role="status" aria-live="polite">已开启大写锁定，密码区分大小写。</div>
+                <div class="password-rules" id="password-rules" aria-live="polite">
+                    <p class="password-rules-title">密码需要同时满足以下规则</p>
+                    <div class="password-rule" data-rule="length">至少 8 位字符</div>
+                    <div class="password-rule" data-rule="uppercase">包含大写字母 A-Z</div>
+                    <div class="password-rule" data-rule="lowercase">包含小写字母 a-z</div>
+                    <div class="password-rule" data-rule="number">包含数字 0-9</div>
+                    <div class="password-rule" data-rule="special">包含特殊符号，例如 ! @ #</div>
+                </div>
+                <div class="form-floating has-password-toggle" style="margin-bottom: var(--space-8);">
+                    <input type="password" id="reg-password-confirm" placeholder=" " required minlength="8" autocomplete="new-password">
+                    <label for="reg-password-confirm">再次确认密码</label>
+                    <button type="button" class="password-toggle" data-password-toggle="reg-password-confirm" aria-label="显示密码" aria-pressed="false"></button>
+                </div>
+                <div id="reg-confirm-caps-lock-help" class="caps-lock-help" role="status" aria-live="polite">已开启大写锁定，密码区分大小写。</div>
+                <p id="password-match-help" class="password-match-help"></p>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">创建账户并登录</button>
+            </form>
+            <div class="auth-footer">已有账户？ <span class="auth-link" style="color: #0b57d0;" onclick="switchMainView('login')">直接登录</span></div>
+        </div>
+
+        <div class="legal-text">
+            注册/登录即表示您同意 <a href="terms.html" target="_blank">服务条款</a>，并已阅读 <a href="privacy.html" target="_blank">隐私说明</a>。
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgot-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="mb-md">找回密码</h3>
+            <p class="mb-lg" style="color: var(--color-text-secondary); font-size: var(--text-small);">请联系系统管理员或发送邮件至支持邮箱重置您的密码。</p>
+            <div style="background: var(--color-surface-subtle); padding: var(--space-16); border-radius: var(--radius-md); margin-bottom: var(--space-24);">
+                <div style="font-weight: 600; margin-bottom: 4px;">客服微信号</div>
+                <div style="color: var(--color-text-primary); font-family: monospace;">Auralis_Support</div>
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="closeForgotModal()">知道了</button>
+        </div>
+    </div>
+
+    <script src="./assets/js/app.js"></script>
+    <script>
+        function showToast(msg, type) {
+            const toast = document.getElementById('global-toast');
+            toast.innerText = msg;
+            toast.style.backgroundColor = type === 'error' ? 'var(--color-status-error)' : type === 'success' ? 'var(--color-status-success)' : 'var(--color-text-primary)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function openForgotModal() {
+            document.getElementById('forgot-modal').style.display = 'flex';
+        }
+
+        function closeForgotModal() {
+            document.getElementById('forgot-modal').style.display = 'none';
+        }
+
+        function switchMainView(mode) {
+            const isRegister = mode === 'register';
+            document.getElementById('view-login').classList.toggle('active', !isRegister);
+            document.getElementById('view-register').classList.toggle('active', isRegister);
+            document.getElementById('auth-title').innerText = isRegister ? '创建新账户' : '欢迎回来';
+            document.getElementById('auth-subtitle').innerText = isRegister ? '注册后可上传照片并创建生成任务' : '登录以继续管理您的专属职业形象库';
+        }
+
+        const passwordRules = {
+            length: (value) => value.length >= 8,
+            uppercase: (value) => /[A-Z]/.test(value),
+            lowercase: (value) => /[a-z]/.test(value),
+            number: (value) => /\d/.test(value),
+            special: (value) => /[^A-Za-z0-9]/.test(value)
+        };
+
+        function getPasswordState(password) {
+            return Object.fromEntries(Object.entries(passwordRules).map(([key, test]) => [key, test(password)]));
+        }
+
+        function isPasswordValid(password) {
+            return Object.values(getPasswordState(password)).every(Boolean);
+        }
+
+        function updatePasswordFeedback() {
+            const password = document.getElementById('reg-password').value;
+            const confirmPassword = document.getElementById('reg-password-confirm').value;
+            const state = getPasswordState(password);
+            const matchHelp = document.getElementById('password-match-help');
+
+            Object.entries(state).forEach(([rule, valid]) => {
+                document.querySelector(`[data-rule="${rule}"]`).classList.toggle('is-valid', valid);
+            });
+
+            matchHelp.classList.remove('is-error', 'is-valid');
+            if (!confirmPassword) {
+                matchHelp.innerText = '';
+            } else if (password !== confirmPassword) {
+                matchHelp.innerText = '两次输入的密码不一致。';
+                matchHelp.classList.add('is-error');
+            } else {
+                matchHelp.innerText = '两次密码已一致。';
+                matchHelp.classList.add('is-valid');
+            }
+        }
+
+        function updateCapsLockHelp(event, helpId) {
+            const help = document.getElementById(helpId);
+            if (!help || !event.getModifierState) return;
+            help.classList.toggle('is-visible', event.getModifierState('CapsLock'));
+        }
+
+        function bindCapsLockHelp(inputId, helpId) {
+            const input = document.getElementById(inputId);
+            const help = document.getElementById(helpId);
+            if (!input || !help) return;
+
+            ['keydown', 'keyup', 'mousedown'].forEach((eventName) => {
+                input.addEventListener(eventName, (event) => updateCapsLockHelp(event, helpId));
+            });
+            input.addEventListener('blur', () => help.classList.remove('is-visible'));
+        }
+
+        function passwordToggleIcon(isVisible) {
+            return isVisible
+                ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4.4 10 8a12.4 12.4 0 0 1-2.1 3.6"/><path d="M6.6 6.6C4.4 8 2.8 10.2 2 12c1 3.6 5 8 10 8 1.5 0 2.9-.4 4.1-1"/></svg>'
+                : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+        }
+
+        function updatePasswordToggleButton(button, isVisible) {
+            button.innerHTML = passwordToggleIcon(isVisible);
+            button.setAttribute('aria-label', isVisible ? '隐藏密码' : '显示密码');
+            button.setAttribute('aria-pressed', String(isVisible));
+        }
+
+        function bindPasswordToggles() {
+            document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+                const input = document.getElementById(button.dataset.passwordToggle);
+                if (!input) return;
+                updatePasswordToggleButton(button, false);
+                button.addEventListener('click', () => {
+                    const shouldShow = input.type === 'password';
+                    input.type = shouldShow ? 'text' : 'password';
+                    updatePasswordToggleButton(button, shouldShow);
+                    input.focus();
+                    const length = input.value.length;
+                    input.setSelectionRange(length, length);
+                });
+            });
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = event.submitter;
+            button.disabled = true;
+            button.innerText = '正在登录...';
+            try {
+                const session = await window.ImpeccableApp.apiFetch('/api/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        email: document.getElementById('login-email').value.trim(),
+                        password: document.getElementById('login-pswd').value
+                    })
+                });
+                window.ImpeccableApp.persistLocalUser(session);
+                showToast('登录成功，正在进入控制台。', 'success');
+                setTimeout(() => { window.location.href = window.ImpeccableApp.consumePostAuthRedirect(); }, 500);
+            } catch (error) {
+                button.disabled = false;
+                button.innerText = '登录安全账户';
+                showToast(error.message || '登录失败，请稍后再试。', 'error');
+            }
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const password = document.getElementById('reg-password').value;
+            const confirmPassword = document.getElementById('reg-password-confirm').value;
+            if (!isPasswordValid(password)) {
+                updatePasswordFeedback();
+                showToast('密码需同时包含 8 位以上、大写字母、小写字母、数字和特殊符号。', 'error');
+                return;
+            }
+            if (password !== confirmPassword) {
+                updatePasswordFeedback();
+                showToast('两次密码输入不一致。', 'error');
+                return;
+            }
+
+            const button = event.submitter;
+            button.disabled = true;
+            button.innerText = '正在创建账户...';
+            try {
+                const session = await window.ImpeccableApp.apiFetch('/api/auth/register', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: document.getElementById('reg-name').value.trim(),
+                        email: document.getElementById('reg-email').value.trim(),
+                        password
+                    })
+                });
+                window.ImpeccableApp.persistLocalUser(session);
+                showToast('账户创建成功，正在进入控制台。', 'success');
+                setTimeout(() => { window.location.href = window.ImpeccableApp.consumePostAuthRedirect(); }, 500);
+            } catch (error) {
+                button.disabled = false;
+                button.innerText = '创建账户并登录';
+                showToast(error.message || '注册失败，请稍后再试。', 'error');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            bindPasswordToggles();
+            bindCapsLockHelp('login-pswd', 'login-caps-lock-help');
+            bindCapsLockHelp('reg-password', 'reg-caps-lock-help');
+            bindCapsLockHelp('reg-password-confirm', 'reg-confirm-caps-lock-help');
+            document.getElementById('reg-password').addEventListener('input', updatePasswordFeedback);
+            document.getElementById('reg-password-confirm').addEventListener('input', updatePasswordFeedback);
+            const session = await window.ImpeccableApp.syncSession();
+            if (session.authenticated) {
+                window.location.href = 'dashboard.html';
+            }
+        });
+    </script>
+</body>
+</html>

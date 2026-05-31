@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 职业形象照 - 专业的个人与团队摄影服务</title>
+    <meta name="description" content="几张自拍，快速生成适合求职与商务场景的专业形象照。">
+    
+    <!-- Preconnect for fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- We use Geist for a very premium, monochrome Vercel-like aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Impeccable CSS System -->
+    <link rel="stylesheet" href="./assets/css/system.css">
+    <link rel="stylesheet" href="./assets/css/layout.css">
+    <link rel="stylesheet" href="./assets/css/components.css">
+    <link rel="stylesheet" href="./assets/css/mobile.css">
+
+    <!-- Page Specific Styles (Kept in-file for performance during prototyping) -->
+    <style>
+        /* Hero right-side slider visualization */
+        .hero-images {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: var(--space-16);
+            min-width: 0;
+        }
+        .hero-img-placeholder {
+            width: 100%;
+            min-width: 0;
+            aspect-ratio: 3/4;
+            background-color: var(--color-surface-elevated);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border-subtle);
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 3-step icons */
+        .step-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            background-color: var(--color-surface-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-16);
+            font-size: 1.5rem;
+            color: var(--color-text-primary);
+        }
+
+        /* Pricing Card Highlight */
+        .pricing-card.highlight {
+            border-color: var(--color-text-primary);
+            box-shadow: var(--shadow-md);
+        }
+
+        .pricing-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 100%;
+        }
+
+        .pricing-price {
+            font-size: clamp(2rem, 4vw, 3.25rem);
+            line-height: 1;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin: var(--space-16) 0;
+        }
+
+        .pricing-list {
+            list-style: none;
+            display: grid;
+            gap: var(--space-12);
+            margin: var(--space-24) 0;
+            color: var(--color-text-secondary);
+            font-size: var(--text-small);
+        }
+
+        .pricing-list li {
+            display: flex;
+            gap: var(--space-8);
+            align-items: flex-start;
+        }
+
+        .pricing-list li::before {
+            content: "";
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+            margin-top: 2px;
+            background: currentColor;
+            mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 6 9 17l-5-5' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+        }
+
+        .trust-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: var(--space-16);
+            margin-top: var(--space-24);
+        }
+
+        .trust-strip-item {
+            padding: var(--space-16);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md);
+            background: var(--color-surface-pure);
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+        }
+
+        .trust-strip-item strong {
+            display: block;
+            margin-bottom: var(--space-4);
+            color: var(--color-text-primary);
+        }
+
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: var(--space-24);
+        }
+
+        .scenario-card {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0;
+            text-decoration: none;
+        }
+
+        .scenario-card-media {
+            position: relative;
+            aspect-ratio: 4 / 3;
+            overflow: hidden;
+            background: var(--color-surface-elevated);
+        }
+
+        .scenario-card-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            transition: transform 220ms ease;
+        }
+
+        .scenario-card:hover .scenario-card-media img {
+            transform: scale(1.035);
+        }
+
+        .scenario-card-body {
+            display: grid;
+            gap: var(--space-8);
+            padding: var(--space-24);
+        }
+
+        .scenario-card-label {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-full);
+            padding: 4px 10px;
+            color: var(--color-text-secondary);
+            font-size: 12px;
+            font-weight: var(--weight-medium);
+        }
+
+        .watermark-feature {
+            display: grid;
+            grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+            gap: var(--space-64);
+            align-items: center;
+        }
+
+        .watermark-preview-card {
+            position: relative;
+            min-height: 480px;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--color-border-subtle);
+            background: var(--color-surface-elevated);
+        }
+
+        .watermark-preview-card img {
+            width: 100%;
+            height: 100%;
+            min-height: 480px;
+            object-fit: cover;
+            object-position: center top;
+            display: block;
+        }
+
+        .watermark-preview-overlay {
+            position: absolute;
+            inset: auto var(--space-24) var(--space-24);
+            display: grid;
+            gap: var(--space-4);
+            padding-top: var(--space-64);
+            background: linear-gradient(180deg, transparent, rgba(13, 18, 28, 0.76));
+            color: #fff;
+        }
+
+        .watermark-preview-title {
+            color: #f6f7fb;
+            font-size: clamp(1.6rem, 3vw, 2.5rem);
+            line-height: 1;
+            font-weight: var(--weight-semibold);
+        }
+
+        .watermark-preview-meta {
+            color: rgba(255,255,255,.72);
+            font-size: var(--text-small);
+        }
+
+        .feature-list {
+            list-style: none;
+            display: grid;
+            gap: var(--space-12);
+            margin-top: var(--space-24);
+            color: var(--color-text-secondary);
+        }
+
+        .feature-list li {
+            padding: var(--space-16);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-md);
+            background: var(--color-surface-pure);
+        }
+
+        @media (max-width: 768px) {
+            .trust-strip {
+                grid-template-columns: 1fr;
+            }
+
+            .scenario-grid,
+            .watermark-feature {
+                grid-template-columns: 1fr;
+            }
+
+            .scenario-card-body {
+                padding: var(--space-16);
+            }
+
+            .watermark-preview-card,
+            .watermark-preview-card img {
+                min-height: 380px;
+            }
+        }
+
+        /* Footer Link Hover State */
+        .footer-link {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease, transform 0.2s ease;
+        }
+        .footer-link:hover {
+            color: var(--color-text-primary);
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
+
+        /* Top Nav Link Hover */
+        .nav-link {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .nav-link:hover {
+            color: var(--color-text-primary);
+        }
+        .nav-user-btn {
+            max-width: 220px;
+            min-height: 44px;
+            gap: var(--space-8);
+            overflow: hidden;
+        }
+        .nav-user-avatar {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+            border-radius: 50%;
+            background: var(--color-text-primary);
+            color: var(--color-text-inverse);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: var(--weight-semibold);
+        }
+        .nav-user-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                overflow-x: hidden;
+            }
+
+            h1 {
+                max-width: 100%;
+                font-size: 2rem;
+                line-height: 1.12;
+                word-break: break-all;
+                overflow-wrap: anywhere;
+            }
+
+            p {
+                overflow-wrap: anywhere;
+            }
+
+            .mobile-nav-container {
+                gap: var(--space-12);
+            }
+
+            .mobile-nav-actions {
+                gap: var(--space-8);
+            }
+
+            .mobile-nav-cta {
+                display: none;
+            }
+
+            .hero-actions {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .hero-actions .btn {
+                width: 100%;
+                padding-left: var(--space-16) !important;
+                padding-right: var(--space-16) !important;
+                white-space: normal;
+                text-align: center;
+                line-height: 1.15;
+            }
+
+            .hero-images {
+                grid-template-columns: 1fr;
+                gap: var(--space-12);
+            }
+
+            .hero-img-placeholder[style] {
+                border-radius: var(--radius-lg) !important;
+                transform: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. Navigation -->
+    <nav class="header-sticky">
+        <div class="container flex-row justify-between mobile-nav-container" style="height: 80px;">
+            <div class="flex-row gap-lg">
+                <a href="index.html" style="font-weight: var(--weight-semibold); font-size: 1.2rem; color: var(--color-text-primary); text-decoration: none;">Auralis<span style="color:var(--color-text-secondary); margin-left: 6px; font-size: .82em; letter-spacing: .08em;">曜临</span></a>
+                <div class="desktop-only flex-row gap-md" style="font-size: var(--text-small);">
+                    <a href="gallery.html" class="nav-link" data-i18n="nav_gallery">案例展示</a>
+                    <a href="#pricing" class="nav-link" data-i18n="nav_pricing">套餐价格</a>
+                    <a href="enterprise.html" class="nav-link" data-i18n="nav_enterprise">企业团队</a>
+                    <a href="faq.html" class="nav-link" data-i18n="nav_faq">常见问题</a>
+                </div>
+            </div>
+            <div class="flex-row gap-md">
+                <!-- Language Switcher -->
+                <div class="dropdown-wrapper" style="position: relative;">
+                    <button class="btn btn-ghost" style="font-size: var(--text-small); padding: 0 var(--space-8);">🌐</button>
+                    <div class="dropdown-content" style="position: absolute; right: 0; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); display: none; min-width: 100px; z-index: 1000; box-shadow: var(--shadow-sm);">
+                        <a href="#" class="lang-selector nav-link" data-lang="zh" style="display: block; padding: 8px 16px;">简体中文</a>
+                        <a href="#" class="lang-selector nav-link" data-lang="en" style="display: block; padding: 8px 16px;">English</a>
+                        <a href="#" class="lang-selector nav-link" data-lang="ja" style="display: block; padding: 8px 16px;">日本語</a>
+                        <a href="#" class="lang-selector nav-link" data-lang="fr" style="display: block; padding: 8px 16px;">Français</a>
+                        <a href="#" class="lang-selector nav-link" data-lang="es" style="display: block; padding: 8px 16px;">Español</a>
+                    </div>
+                </div>
+                <script>
+                    document.querySelector('.dropdown-wrapper').addEventListener('mouseenter', () => {
+                        document.querySelector('.dropdown-content').style.display = 'block';
+                    });
+                    document.querySelector('.dropdown-wrapper').addEventListener('mouseleave', () => {
+                        document.querySelector('.dropdown-content').style.display = 'none';
+                    });
+                </script>
+
+                <a href="login.html" id="nav-login-btn" class="btn btn-ghost" style="font-size: var(--text-small);" data-i18n="nav_login">登录</a>
+                <a href="#" onclick="handleGenerateClick(event)" class="btn btn-primary mobile-nav-cta" style="font-size: var(--text-small);" data-i18n="nav_generate">立即生成形象照</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 2. Hero Section -->
+    <section class="section">
+        <div class="container grid align-center gap-xl">
+            <!-- Left Text Content -->
+            <div class="col-5 flex-col align-start">
+                <div class="hero-eyebrow" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(16, 24, 40, 0.05); border-radius: 999px; font-size: var(--text-small); color: var(--color-text-secondary); margin-bottom: var(--space-16);">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+                    端到端加密 · 绝不用于训练 · 微信支付
+                </div>
+                <h1 class="mb-md" data-i18n="hero_title">几张自拍，<br>换一套真正能用的职业形象照</h1>
+                <p class="mb-lg" style="color: var(--color-text-secondary); max-width: 600px;" data-i18n="hero_subtitle">区别于市面上一口价"AI 写真"工具：Auralis 把交付物当作品牌资产来做。可选 <strong style="color: var(--color-text-primary);">带信息水印</strong> 或 <strong style="color: var(--color-text-primary);">无信息水印</strong> 两种下载，文字由程序后期叠加，不会出现 AI 把名字、邮箱拼错的尴尬。</p>
+                <div class="flex-row gap-md mb-lg hero-actions">
+                    <a href="#" onclick="handleGenerateClick(event)" class="btn btn-primary btn-mobile-full" style="padding: var(--space-16) var(--space-48); font-size: 1.1rem; border-radius: var(--radius-full);" data-i18n="btn_start">¥99 立即开始生成</a>
+                    <a href="gallery.html" class="btn btn-secondary btn-mobile-full" data-i18n="btn_view_cases">先看 50+ 真实样片</a>
+                </div>
+                <!-- Trust points -->
+                <div class="flex-col gap-sm" style="font-size: var(--text-small); color: var(--color-text-tertiary);">
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>~3 分钟出图，2 次免费重绘</span></div>
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>原图与成片仅本人可见，支持一键彻底删除（含后端备份）</span></div>
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>7 天无理由可联系客服处理</span></div>
+                </div>
+            </div>
+
+            <!-- Right Visual Component -->
+            <div class="col-7">
+                <div class="hero-images">
+                    <img class="hero-img-placeholder" src="./assets/showcase/source-selfie.jpg" alt="用户自拍示例" style="border-radius: var(--radius-lg) 0 var(--radius-lg) var(--radius-lg);">
+                    <img class="hero-img-placeholder" src="./assets/showcase/pro-headshot.jpg" alt="AI 职业形象照示例" style="border-radius: 0 var(--radius-lg) var(--radius-lg) var(--radius-lg); transform: translateY(24px);">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2.5 Trust strip — 直接消解 AI 写真品类的 4 大顾虑 -->
+    <section style="background-color: #0f172a; color: white; padding: var(--space-32) 0;">
+        <div class="container">
+            <div class="hero-trust-grid">
+                <div class="hero-trust-card">
+                    <div class="hero-trust-title">🔒 隐私三承诺</div>
+                    <div class="hero-trust-desc">端到端加密传输 · <strong>绝不用于模型训练</strong> · 一键彻底删除含后端备份。直接回应妙鸭事件后用户最在意的三件事。</div>
+                </div>
+                <div class="hero-trust-card">
+                    <div class="hero-trust-title">⚡ 分钟级交付</div>
+                    <div class="hero-trust-desc"><strong>~3 分钟出图</strong>，标准包含 2 次免费重绘。无需排队、无需第二天回来看，分享欲不会衰退。</div>
+                </div>
+                <div class="hero-trust-card">
+                    <div class="hero-trust-title">↺ 双下载选择权</div>
+                    <div class="hero-trust-desc">同一张成片可同时导出 <strong>含信息水印</strong>（姓名/职位/邮箱由程序排版叠加）和 <strong>无信息水印</strong> 两个版本。海外 / 国内同类都不提供。</div>
+                </div>
+                <div class="hero-trust-card">
+                    <div class="hero-trust-title">¥ 透明退款</div>
+                    <div class="hero-trust-desc">不满意先 2 次免费重绘，仍不满意 <strong>7 天内联系客服</strong> 处理。付款页明示退款规则，绝不藏灰色小字。</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .hero-trust-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-24);
+        }
+        .hero-trust-card {
+            padding: var(--space-16) var(--space-20);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md);
+        }
+        .hero-trust-title {
+            font-weight: var(--weight-semibold);
+            font-size: 1rem;
+            margin-bottom: 6px;
+            color: white;
+        }
+        .hero-trust-desc {
+            font-size: var(--text-small);
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.55;
+        }
+        .hero-trust-desc strong { color: white; font-weight: var(--weight-semibold); }
+        @media (max-width: 900px) {
+            .hero-trust-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-16); }
+        }
+        @media (max-width: 540px) {
+            .hero-trust-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <!-- 3. Steps Section -->
+    <section class="section" style="background-color: var(--color-surface-subtle);">
+        <div class="container">
+            <h2 class="mb-lg text-center" style="text-align: center;">三步完成你的职业形象升级</h2>
+            <div class="grid-auto">
+                <div class="card-ghost">
+                    <div class="step-icon">1</div>
+                    <h3 class="mb-sm">上传照片</h3>
+                    <p style="margin-bottom: 0;">上传 1 到 5 张清晰自拍，支持手机直接拍摄与相册读取。</p>
+                </div>
+                <div class="card-ghost">
+                    <div class="step-icon">2</div>
+                    <h3 class="mb-sm">选择风格</h3>
+                    <p style="margin-bottom: 0;">选择正式商务、亲和力、创始人排面等适配多场景的气质。</p>
+                </div>
+                <div class="card-ghost">
+                    <div class="step-icon">3</div>
+                    <h3 class="mb-sm">下载结果</h3>
+                    <p style="margin-bottom: 0;">几分钟后即可预览结果，支持多比例原图直接下载与导出。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Scenarios -->
+    <section class="section">
+        <div class="container">
+            <h2 class="mb-lg">适合这些使用场景</h2>
+            <div class="scenario-grid">
+                <a href="upload.html" class="card scenario-card" onclick="handleScenarioClick(event, 'resume')">
+                    <div class="scenario-card-media">
+                        <img src="./assets/gallery/linkedin-white-collar.jpg" alt="求职头像示例" loading="lazy">
+                    </div>
+                    <div class="scenario-card-body">
+                        <span class="scenario-card-label">简历 / 求职</span>
+                        <h3 class="mb-sm">求职头像</h3>
+                        <p style="margin-bottom: 0;">符合简历规范，传递可靠与专业感。</p>
+                    </div>
+                </a>
+                <a href="upload.html" class="card scenario-card" onclick="handleScenarioClick(event, 'linkedin')">
+                    <div class="scenario-card-media">
+                        <img src="./assets/gallery/medical-researcher.jpg" alt="LinkedIn 头像示例" loading="lazy">
+                    </div>
+                    <div class="scenario-card-body">
+                        <span class="scenario-card-label">LinkedIn / 社交</span>
+                        <h3 class="mb-sm">LinkedIn 头像</h3>
+                        <p style="margin-bottom: 0;">建立职场第一印象，拓宽职业关系网。</p>
+                    </div>
+                </a>
+                <a href="upload.html" class="card scenario-card" onclick="handleScenarioClick(event, 'company')">
+                    <div class="scenario-card-media">
+                        <img src="./assets/gallery/startup-ceo.jpg" alt="企业官网头像示例" loading="lazy">
+                    </div>
+                    <div class="scenario-card-body">
+                        <span class="scenario-card-label">官网 / 高管页</span>
+                        <h3 class="mb-sm">企业官网</h3>
+                        <p style="margin-bottom: 0;">展示创始人和高管的专业风采。</p>
+                    </div>
+                </a>
+                <a href="upload.html" class="card scenario-card" onclick="handleScenarioClick(event, 'team')">
+                    <div class="scenario-card-media">
+                        <img src="./assets/gallery/annual-conference-poster.jpg" alt="团队形象照示例" loading="lazy">
+                    </div>
+                    <div class="scenario-card-body">
+                        <span class="scenario-card-label">团队 / 品牌统一</span>
+                        <h3 class="mb-sm">团队形象照</h3>
+                        <p style="margin-bottom: 0;">为分布各地的团队生成统一视觉规范。</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Watermark Feature -->
+    <section class="section" style="background-color: var(--color-surface-subtle);">
+        <div class="container watermark-feature">
+            <div>
+                <h2 class="mb-md">品牌水印由系统后期叠加</h2>
+                <p style="margin-bottom: 0;">姓名、职位、公司、邮箱和电话不会交给 AI 随机生成，而是在出图后由程序排版叠加，文字更准确，也更适合官网、简历和团队名片使用。</p>
+                <ul class="feature-list">
+                    <li><strong>文字准确</strong><br>避免 AI 把姓名、公司、邮箱生成错字。</li>
+                    <li><strong>位置可控</strong><br>支持左下、右下和底部信息栏等职业版式。</li>
+                    <li><strong>适合付费交付</strong><br>同一套头像可导出无文字版和品牌署名版。</li>
+                </ul>
+            </div>
+            <div class="watermark-preview-card" aria-label="品牌水印效果示例">
+                <img src="./assets/gallery/annual-conference-poster.jpg" alt="带品牌水印的职业形象照示例" loading="lazy">
+                <div class="watermark-preview-overlay">
+                    <div class="watermark-preview-title">Chris Tang</div>
+                    <div class="watermark-preview-meta">Founder / Auralis Portrait System</div>
+                    <div class="watermark-preview-meta">MAIL: HELLO@AURALIS.EXAMPLE</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5.5 真实样片 - 上传 / 成片 对比 -->
+    <section class="section">
+        <div class="container">
+            <div style="text-align: center; max-width: 740px; margin: 0 auto var(--space-32);">
+                <h2 class="mb-md">真实样片：告别千篇一律的 "AI 脸"</h2>
+                <p style="margin-bottom: 0; color: var(--color-text-secondary);">我们保留你的真实特征，只做光影、服装和微表情的专业重塑。每张照片都经得起放大审视。</p>
+            </div>
+
+            <div class="sample-row">
+                <!-- Sample 1: 个人创始人排面 -->
+                <div class="sample-pair">
+                    <div class="sample-side sample-source" style="background-image: url('./assets/showcase/source-selfie.jpg');">
+                        <span class="sample-chip">上传</span>
+                    </div>
+                    <div class="sample-side" style="background-image: url('./assets/showcase/pro-headshot.jpg');">
+                        <span class="sample-chip dark">成片</span>
+                    </div>
+                    <div class="sample-meta">
+                        <span class="sample-meta-source">手机室内自拍</span>
+                        <span class="sample-meta-final">创始人排面 / 无水印版</span>
+                    </div>
+                </div>
+
+                <!-- Sample 2: 外企职场 -->
+                <div class="sample-pair">
+                    <div class="sample-side sample-placeholder">
+                        <span class="sample-chip">上传</span>
+                        <div class="sample-placeholder-icon">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                            <span>用户原图保护</span>
+                        </div>
+                    </div>
+                    <div class="sample-side" style="background-image: url('./assets/gallery/linkedin-white-collar.jpg');">
+                        <span class="sample-chip dark">成片</span>
+                        <div class="sample-info-watermark">
+                            <div class="iw-title">Chris 唐臻卓</div>
+                            <div class="iw-meta">深圳臻科技 / Founder</div>
+                            <div class="iw-meta">MAIL: HELLO@AURALIS</div>
+                        </div>
+                    </div>
+                    <div class="sample-meta">
+                        <span class="sample-meta-source">生活照提取</span>
+                        <span class="sample-meta-final">外企职场 / 含信息水印版</span>
+                    </div>
+                </div>
+
+                <!-- Sample 3: 医疗科研 / 纯净底图 -->
+                <div class="sample-pair">
+                    <div class="sample-side sample-placeholder">
+                        <span class="sample-chip">上传</span>
+                        <div class="sample-placeholder-icon">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                            <span>用户原图保护</span>
+                        </div>
+                    </div>
+                    <div class="sample-side" style="background-image: url('./assets/gallery/medical-researcher.jpg');">
+                        <span class="sample-chip dark">成片</span>
+                    </div>
+                    <div class="sample-meta">
+                        <span class="sample-meta-source">普通证件照</span>
+                        <span class="sample-meta-final">医疗科研 / 纯净底图</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: var(--space-32);">
+                <a href="gallery.html" class="btn btn-secondary" style="padding: 12px 28px; border-radius: 999px;">查看完整真实图库 (50+)</a>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .sample-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-24);
+        }
+        .sample-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 8px;
+            background: var(--color-surface-subtle);
+            border-radius: var(--radius-lg, 16px);
+            position: relative;
+        }
+        .sample-side {
+            position: relative;
+            aspect-ratio: 3 / 4;
+            background-size: cover;
+            background-position: center;
+            background-color: #e8eaef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .sample-chip {
+            position: absolute; top: 10px; left: 10px;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: var(--weight-semibold);
+            background: rgba(255,255,255,0.92);
+            color: var(--color-text-secondary);
+            border-radius: 6px;
+            letter-spacing: 0.04em;
+        }
+        .sample-chip.dark {
+            background: oklch(0.15 0.005 260 / 0.85);
+            color: white;
+        }
+        .sample-placeholder {
+            display: flex; align-items: center; justify-content: center;
+            background-color: #eef0f5;
+        }
+        .sample-placeholder-icon {
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            color: #b6bcc8; font-size: 12px;
+        }
+        .sample-meta {
+            grid-column: 1 / -1;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 8px 4px;
+            font-size: var(--text-small);
+            color: var(--color-text-secondary);
+        }
+        .sample-meta-final {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-semibold);
+        }
+        .sample-info-watermark {
+            position: absolute; left: 12px; bottom: 14px;
+            color: white;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+            line-height: 1.35;
+        }
+        .iw-title { font-size: 13px; font-weight: 600; color: #6c7bff; }
+        .iw-meta { font-size: 9px; letter-spacing: 0.05em; opacity: 0.92; color: white; }
+        @media (max-width: 960px) {
+            .sample-row { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <!-- 6. Pricing -->
+    <section class="section" id="pricing" style="background-color: var(--color-surface-subtle);">
+        <div class="container">
+            <div class="text-center" style="text-align: center; max-width: 720px; margin: 0 auto var(--space-32);">
+                <h2 class="mb-md">选择适合你的套餐</h2>
+                <p style="margin-bottom: 0; color: var(--color-text-secondary);">所有套餐都包含端到端加密、隐私保护、不满意重绘。<strong style="color: var(--color-text-primary);">每一档都可同时导出含信息水印和无信息水印两个版本</strong>——这是同类工具不提供的能力。</p>
+            </div>
+
+            <div class="pricing-row">
+                <!-- 体验包 -->
+                <div class="card pricing-card">
+                    <div>
+                        <div class="badge">体验包</div>
+                        <h3 class="mb-sm" style="margin-top: var(--space-16);">¥39 <span style="color: var(--color-text-tertiary); font-size: 1rem; font-weight: 400;">/ 1 次</span></h3>
+                        <p style="font-size: var(--text-small); color: var(--color-text-tertiary); text-decoration: line-through; margin: 0 0 var(--space-12);">海外同类 BetterPic ≈ $35 / Aragon ≈ $35</p>
+                        <p style="font-size: var(--text-small); margin-bottom: 0;">适合 LinkedIn 单次更新、求职刚需。先确认效果再升级。</p>
+                        <ul class="pricing-list">
+                            <li>1 次生成 / 4 张职业成片</li>
+                            <li>2 次免费重绘</li>
+                            <li><strong>双下载：含信息水印 + 无信息水印</strong></li>
+                            <li>预览图自带 Auralis Preview 防盗水印</li>
+                        </ul>
+                    </div>
+                    <a href="#" onclick="handleGenerateClick(event)" class="btn btn-secondary" style="width: 100%;">立即体验</a>
+                </div>
+
+                <!-- 标准包（推荐） -->
+                <div class="card pricing-card highlight" style="position: relative;">
+                    <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--color-text-primary); color: white; padding: 4px 14px; border-radius: 999px; font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: 0.04em;">最受欢迎</div>
+                    <div>
+                        <div class="badge badge-success">个人主力</div>
+                        <h3 class="mb-sm" style="margin-top: var(--space-16);">¥99 <span style="color: var(--color-text-tertiary); font-size: 1rem; font-weight: 400;">/ 4 次</span></h3>
+                        <p style="font-size: var(--text-small); color: var(--color-text-tertiary); margin: 0 0 var(--space-12);">≈ 海马体 1 套写真 1/3 的价格，多 16 张全风格成片</p>
+                        <p style="font-size: var(--text-small); margin-bottom: 0;">适合求职 + 简历 + 名片 + 个人品牌的组合需求。</p>
+                        <ul class="pricing-list">
+                            <li>4 次生成 / 16 张多风格成片</li>
+                            <li>每次 2 次免费重绘</li>
+                            <li><strong>双下载：含信息水印 + 无信息水印</strong></li>
+                            <li>明星卡 / 档案海报多版式</li>
+                            <li>团队链接 + 1080P 动态名片</li>
+                        </ul>
+                    </div>
+                    <a href="#" onclick="handleGenerateClick(event)" class="btn btn-primary" style="width: 100%; background-color: var(--color-text-primary);">立即开通</a>
+                </div>
+
+                <!-- 旗舰包 -->
+                <div class="card pricing-card">
+                    <div>
+                        <div class="badge">长期 / 团队</div>
+                        <h3 class="mb-sm" style="margin-top: var(--space-16);">¥249 <span style="color: var(--color-text-tertiary); font-size: 1rem; font-weight: 400;">/ 12 次</span></h3>
+                        <p style="font-size: var(--text-small); color: var(--color-text-tertiary); margin: 0 0 var(--space-12);">人均比 HeadshotPro 团队版 $39/人 更省</p>
+                        <p style="font-size: var(--text-small); margin-bottom: 0;">适合长期个人品牌经营 + 小团队统一形象。</p>
+                        <ul class="pricing-list">
+                            <li>12 次生成 / 48 张全风格</li>
+                            <li>季度更新提醒（每月可重做）</li>
+                            <li><strong>双下载：含信息水印 + 无信息水印</strong></li>
+                            <li>1080P 动态名片 + 团队链接</li>
+                            <li>专属客服微信通道</li>
+                        </ul>
+                    </div>
+                    <a href="enterprise.html" class="btn btn-secondary" style="width: 100%;">了解详情</a>
+                </div>
+            </div>
+
+            <p style="text-align: center; margin-top: var(--space-32); color: var(--color-text-tertiary); font-size: var(--text-small); max-width: 760px; margin-left: auto; margin-right: auto;">
+                所有套餐 7 天内不满意可联系客服处理；先预览再付款、付款后才解锁高清版。生成结果归你私人所有，传输加密，<strong style="color: var(--color-text-primary);">绝不用于训练</strong>。支持微信支付、对公开票（联系客服）。
+            </p>
+        </div>
+    </section>
+
+    <style>
+        .pricing-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-24);
+            align-items: stretch;
+        }
+        .pricing-row .pricing-card { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+        @media (max-width: 960px) {
+            .pricing-row { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <!-- 6.5 Competitor comparison -->
+    <section class="section">
+        <div class="container" style="max-width: 1040px;">
+            <h2 class="mb-md" style="text-align: center;">和市面上同类产品比，差在哪里</h2>
+            <p style="text-align: center; color: var(--color-text-secondary); margin-bottom: var(--space-32);">把 Auralis、国内"9.9 元 AI 写真"代表、字节系免费应用、海外职业头像工具放一起，让你选得明白。</p>
+            <div class="compare-table-wrap">
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th class="compare-self">Auralis 曜临</th>
+                            <th>妙鸭相机</th>
+                            <th>星绘 (字节)</th>
+                            <th>Aragon / BetterPic</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>起步价</td><td class="compare-self">¥39 / 1 次</td><td>¥9.9–29.9</td><td>免费 + 内购</td><td>$35–79（≈ ¥250–560）</td></tr>
+                        <tr><td>交付物</td><td class="compare-self"><strong>含/无信息水印双版本</strong></td><td>单一版本</td><td>单一版本</td><td>单一版本</td></tr>
+                        <tr><td>信息水印（姓名/职位/邮箱）</td><td class="compare-self"><strong>程序后期叠加，文字 100% 准确</strong></td><td>AI 生成，常拼错</td><td>AI 生成，常拼错</td><td>不提供 / 需自己后期</td></tr>
+                        <tr><td>明示"绝不用于训练"</td><td class="compare-self">✓ 协议 + 隐私页</td><td>事故后才改条款</td><td>大厂体系，间接条款</td><td>✓（多为英文 DPA）</td></tr>
+                        <tr><td>一键彻底删除（含后端备份）</td><td class="compare-self">✓</td><td>未明示后端清除</td><td>未明示</td><td>部分支持</td></tr>
+                        <tr><td>付费方式</td><td class="compare-self">微信支付 / 对公开票</td><td>微信 / 支付宝</td><td>App 内购</td><td>信用卡 / 海外支付</td></tr>
+                        <tr><td>企业 / 团队方案</td><td class="compare-self">✓ 人工对接 + 部门批量</td><td>无</td><td>无</td><td>仅英文支持</td></tr>
+                        <tr><td>退款保障</td><td class="compare-self">7 天客服处理 + 2 次免费重绘</td><td>"不支持退款"被消保委点名</td><td>App Store 规则</td><td>7–30 天退款</td></tr>
+                    </tbody>
+                </table>
+                <p style="font-size: var(--text-xsmall, .8rem); color: var(--color-text-tertiary); margin-top: var(--space-16);">数据来源：妙鸭相机隐私政策、上海市消保委点名通报、星绘 App Store 信息、Aragon AI / BetterPic 官方定价页（2025 年公开资料整理）。</p>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .compare-table-wrap { background: white; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg, 16px); padding: var(--space-24); overflow-x: auto; }
+        .compare-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+        .compare-table th, .compare-table td { padding: var(--space-12) var(--space-16); text-align: left; border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-small); }
+        .compare-table thead th { font-weight: var(--weight-semibold); color: var(--color-text-secondary); font-size: var(--text-small); }
+        .compare-table thead th.compare-self { color: var(--color-text-primary); }
+        .compare-table tbody td:first-child { color: var(--color-text-secondary); width: 28%; }
+        .compare-table tbody td.compare-self { background: rgba(16, 24, 40, 0.04); color: var(--color-text-primary); font-weight: var(--weight-medium); }
+        .compare-table tbody tr:last-child td { border-bottom: none; }
+    </style>
+
+    <!-- 7. FAQ — 直接回应 5 个用户最关心的问题 -->
+    <section class="section" style="background-color: var(--color-surface-subtle);">
+        <div class="container" style="max-width: 800px;">
+            <h2 class="mb-sm" style="text-align: center;">付款前你最想问的 5 个问题</h2>
+            <p style="text-align: center; color: var(--color-text-secondary); margin-bottom: var(--space-48);">这些是用户在 AI 写真品类里最常表达的顾虑，我们在这里把它说透。</p>
+            <div class="faq-list">
+                <details class="faq-item">
+                    <summary>
+                        <span class="faq-num">01</span>
+                        <span class="faq-question">我的照片会被用于训练大模型吗？</span>
+                        <span class="faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="faq-body"><div>
+                        <p class="faq-answer">不会。原始上传照片仅用于本次生成任务，传输全程加密。任务结束后照片仅保留在你的私有形象库里——除你之外没有人能看到。<strong>我们的协议明确写出"绝不用于模型训练"</strong>，并在隐私页提供一键彻底删除（包含后端备份与缓存）。妙鸭事件之后行业最大的一道伤口，我们当作最低门槛在做。</p>
+                    </div></div>
+                </details>
+                <details class="faq-item">
+                    <summary>
+                        <span class="faq-num">02</span>
+                        <span class="faq-question">我点了"删除"，后端数据库是不是真的清掉了？</span>
+                        <span class="faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="faq-body"><div>
+                        <p class="faq-answer">是。删除请求会同步清除三处：① 数据库记录 ② 私有云空间的原始文件 ③ 备份系统中的副本。完成清除后我们会在你的账户里显示删除时间戳。该操作不可恢复，请确认后再执行。</p>
+                    </div></div>
+                </details>
+                <details class="faq-item">
+                    <summary>
+                        <span class="faq-num">03</span>
+                        <span class="faq-question">出来的照片不像我 / 跟所有人长得一样，怎么办？</span>
+                        <span class="faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="faq-body"><div>
+                        <p class="faq-answer">AI 生成本身有一定随机性。我们的做法是：先付款前你看预览（带防盗水印），<strong>每次任务自带 2 次免费重绘</strong>，可换风格 / 换发型 / 换光线再生成。如果重绘后仍然不满意，<strong>7 天内联系客服可退款处理</strong>。我们的定价已经把"重绘成本"和"不满意补偿"算在里面。</p>
+                    </div></div>
+                </details>
+                <details class="faq-item">
+                    <summary>
+                        <span class="faq-num">04</span>
+                        <span class="faq-question">含信息水印 vs 无信息水印，到底什么差别？</span>
+                        <span class="faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="faq-body"><div>
+                        <p class="faq-answer">每张成片付款后都会同时给你两个下载版本：<br><br>
+                        <strong>· 含信息水印版</strong>——左下角排版你的姓名 / 职位 / 公司 / 邮箱 / 电话，文字由程序后期精确叠加（不是 AI 生成，绝不会拼错字），适合做名片、官网团队页、邮件签名。<br><br>
+                        <strong>· 无信息水印版</strong>——干净底图，适合 LinkedIn 头像、微信头像、个人主页。<br><br>
+                        两个版本都是完整高清，<strong>不需要二次付费</strong>。</p>
+                    </div></div>
+                </details>
+                <details class="faq-item">
+                    <summary>
+                        <span class="faq-num">05</span>
+                        <span class="faq-question">多久能拿到结果？要排队吗？</span>
+                        <span class="faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="faq-body"><div>
+                        <p class="faq-answer">常规生成 1–3 分钟出预览。即使遇到峰值，也会进入异步队列并在控制台同步进度——你可以关掉页面去做别的事，完成后微信不打扰，回到控制台直接查看即可。<strong>所有套餐都是预览先看、确认再付款</strong>，不会出现"付了钱才知道生成失败"。</p>
+                    </div></div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .faq-list { border-top: 1px solid var(--color-border-subtle); }
+        .faq-item { border-bottom: 1px solid var(--color-border-subtle); }
+        .faq-item summary {
+            display: grid;
+            grid-template-columns: 2.8rem 1fr 1.75rem;
+            gap: var(--space-16);
+            align-items: center;
+            padding: var(--space-24) 0;
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+        }
+        .faq-item summary::-webkit-details-marker { display: none; }
+        .faq-num {
+            font-size: 11px;
+            font-weight: var(--weight-semibold);
+            letter-spacing: .12em;
+            color: var(--color-text-tertiary);
+            font-variant-numeric: tabular-nums;
+            padding-top: 2px;
+        }
+        .faq-question {
+            font-size: var(--text-body);
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            line-height: 1.4;
+        }
+        .faq-icon {
+            width: 22px;
+            height: 22px;
+            border: 1px solid var(--color-border-default);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+            justify-self: end;
+        }
+        .faq-icon::before,
+        .faq-icon::after {
+            content: '';
+            position: absolute;
+            background: var(--color-text-secondary);
+            border-radius: 1px;
+        }
+        .faq-icon::before { width: 9px; height: 1px; }
+        .faq-icon::after { width: 1px; height: 9px; transition: transform .25s ease; }
+        .faq-item[open] .faq-icon::after { transform: scaleY(0); }
+        .faq-body {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows .3s cubic-bezier(.4,0,.2,1);
+        }
+        .faq-item[open] .faq-body { grid-template-rows: 1fr; }
+        .faq-body > div { overflow: hidden; }
+        .faq-answer {
+            padding: 0 0 var(--space-28) 4.2rem;
+            color: var(--color-text-secondary);
+            line-height: 1.75;
+            font-size: var(--text-body);
+            margin: 0;
+        }
+        .faq-answer strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+    </style>
+
+    <!-- 8. Footer — 紧凑横向布局 -->
+    <footer class="auralis-footer">
+        <div class="container">
+            <div class="footer-main">
+                <div class="footer-brand">
+                    <div class="footer-brand-name">Auralis <span>曜临</span></div>
+                    <p class="footer-brand-desc">专业的 AI 形象照独立站解决方案。让每一张职业形象照都值得交付。</p>
+                    <div class="footer-contact">
+                        <span><strong>客服微信</strong> auralis-support</span>
+                        <span><strong>商务</strong> hello@auralis.example</span>
+                        <span><strong>工作时间</strong> 周一至周六 10:00 – 20:00</span>
+                    </div>
+                </div>
+                <div class="footer-cols">
+                    <div class="footer-col">
+                        <div class="footer-col-title">产品</div>
+                        <a href="gallery.html">案例展示</a>
+                        <a href="style.html">风格库</a>
+                        <a href="#pricing">套餐价格</a>
+                        <a href="enterprise.html">企业方案</a>
+                    </div>
+                    <div class="footer-col">
+                        <div class="footer-col-title">支持</div>
+                        <a href="faq.html">帮助中心</a>
+                        <a href="tutorial.html">使用教程</a>
+                        <a href="support.html">联系客服</a>
+                        <a href="dashboard.html">控制台</a>
+                    </div>
+                    <div class="footer-col">
+                        <div class="footer-col-title">法律</div>
+                        <a href="terms.html">服务条款</a>
+                        <a href="privacy.html">隐私政策</a>
+                        <a href="refund.html">退款规则</a>
+                        <a href="dashboard_privacy.html">数据删除</a>
+                    </div>
+                    <div class="footer-col">
+                        <div class="footer-col-title">关注我们</div>
+                        <a href="#">小红书 @Auralis曜临</a>
+                        <a href="#">即刻 @Auralis</a>
+                        <a href="#">微信公众号</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div>© 2026 Auralis 曜临 · 保留所有权利</div>
+                <div class="footer-bottom-legal">
+                    <span>沪 ICP 备 2026000000 号</span>
+                    <span class="footer-divider">·</span>
+                    <span>沪公网安备 31000000000000 号</span>
+                </div>
+                <div>传输加密 · 端到端隐私保护 · 绝不用于训练</div>
+            </div>
+        </div>
+    </footer>
+
+    <style>
+        .auralis-footer {
+            border-top: 1px solid var(--color-border-subtle);
+            background: white;
+            padding: var(--space-56) 0 var(--space-32);
+        }
+        .footer-main {
+            display: grid;
+            grid-template-columns: 1.4fr 2.4fr;
+            gap: var(--space-48);
+            padding-bottom: var(--space-48);
+        }
+        .footer-brand-name {
+            font-weight: var(--weight-semibold);
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+        .footer-brand-name span {
+            color: var(--color-text-secondary);
+            margin-left: 4px;
+            font-size: .85em;
+            letter-spacing: .08em;
+        }
+        .footer-brand-desc {
+            color: var(--color-text-tertiary);
+            font-size: var(--text-small);
+            line-height: 1.5;
+            margin: 0 0 var(--space-12);
+            max-width: 300px;
+        }
+        .footer-contact {
+            display: flex; flex-direction: column; gap: var(--space-8);
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+        .footer-contact strong { color: var(--color-text-primary); margin-right: 4px; font-weight: var(--weight-semibold); }
+        .footer-cols {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-24);
+        }
+        .footer-col { display: flex; flex-direction: column; gap: var(--space-12); }
+        .footer-col-title {
+            font-weight: var(--weight-semibold);
+            font-size: 13px;
+            color: var(--color-text-primary);
+            margin-bottom: var(--space-8);
+        }
+        .footer-col a {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            line-height: 1.4;
+            transition: color .15s;
+        }
+        .footer-col a:hover { color: var(--color-text-primary); }
+        .footer-bottom {
+            border-top: 1px solid var(--color-border-subtle);
+            padding-top: var(--space-16);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-12);
+            font-size: 12px;
+            color: var(--color-text-tertiary);
+        }
+        .footer-bottom-legal { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .footer-divider { opacity: 0.4; }
+        @media (max-width: 880px) {
+            .footer-main { grid-template-columns: 1fr; gap: var(--space-24); }
+            .footer-cols { grid-template-columns: repeat(2, 1fr); }
+            .footer-bottom { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+
+    <script src="./assets/js/app.js"></script>
+    <script src="./assets/js/i18n.js"></script>
+    <script>
+        function renderAuthenticatedNav(user) {
+            const loginBtn = document.getElementById('nav-login-btn');
+            if (!loginBtn || !user) return;
+            const displayName = user.name || user.email || '我的账户';
+            loginBtn.href = 'dashboard.html';
+            loginBtn.classList.add('nav-user-btn');
+            loginBtn.removeAttribute('data-i18n');
+            loginBtn.setAttribute('aria-label', '已登录，进入控制台');
+            loginBtn.textContent = '';
+
+            const avatar = document.createElement('span');
+            avatar.className = 'nav-user-avatar';
+            avatar.setAttribute('aria-hidden', 'true');
+            avatar.textContent = displayName.trim().charAt(0).toUpperCase() || 'U';
+
+            const label = document.createElement('span');
+            label.className = 'nav-user-name';
+            label.textContent = displayName;
+
+            loginBtn.append(avatar, label);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const session = await window.ImpeccableApp.syncSession();
+            if (session.authenticated) {
+                renderAuthenticatedNav(session.user);
+            }
+        });
+
+        async function handleGenerateClick(e) {
+            e.preventDefault();
+            const session = await window.ImpeccableApp.syncSession();
+            if(!session.authenticated) {
+                window.location.href = 'login.html';
+            } else {
+                window.location.href = 'upload.html';
+            }
+        }
+
+        async function handleScenarioClick(event, preset) {
+            event.preventDefault();
+            window.ImpeccableApp.setScenarioPreset(preset);
+            const session = await window.ImpeccableApp.syncSession();
+            const hasUploads = window.ImpeccableApp.getUploadQueue().length > 0;
+            const next = hasUploads ? 'style.html?preset=' + encodeURIComponent(preset) : 'upload.html?preset=' + encodeURIComponent(preset);
+            if (!session.authenticated) {
+                window.ImpeccableApp.setPostAuthRedirect(next);
+                window.location.href = 'login.html?next=' + encodeURIComponent(next);
+                return;
+            }
+            window.location.href = next;
+        }
+    </script>
+</body>
+</html>

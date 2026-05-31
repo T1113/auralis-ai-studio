@@ -1,0 +1,107 @@
+/* ────────────────────────────────────────────────────────────────
+   mobile.css — 全局移动端兜底层（最后引入，覆盖前面的样式）
+   原则：只补缺、不重写。
+   覆盖：iOS Safari 16+ / Android Chrome 100+ / 微信内置浏览器
+   ──────────────────────────────────────────────────────────────── */
+
+html {
+    -webkit-text-size-adjust: 100%;   /* 阻止 iOS 横屏自动放大字号 */
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    overflow-x: hidden;               /* 兜底防止移动端意外横向滚动 */
+    max-width: 100%;
+}
+
+img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 防止 iOS Safari 聚焦表单时自动 zoom：字号 ≥ 16px */
+@media (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="search"],
+    input[type="url"],
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+}
+
+/* 触摸目标 ≥ 44×44 (Apple HIG / WCAG 2.5.5) */
+@media (max-width: 768px) {
+    button,
+    .btn,
+    a.btn,
+    a.button,
+    [role="button"],
+    input[type="submit"],
+    input[type="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        touch-action: manipulation;   /* 消除 300ms 点击延迟 */
+    }
+}
+
+/* 长字符串（邮箱、URL、订单号）在窄屏断行 */
+@media (max-width: 480px) {
+    .break-anywhere,
+    .order-id,
+    .email-text {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* 首页 footer：小屏从两列折成单列、列内自适应 */
+@media (max-width: 768px) {
+    .auralis-footer .footer-main {
+        grid-template-columns: 1fr !important;
+        gap: var(--space-32, 32px) !important;
+    }
+    .auralis-footer .footer-cols {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .auralis-footer .footer-bottom {
+        flex-direction: column !important;
+        gap: 8px;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .auralis-footer .footer-cols {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* 安全区适配（iPhone 刘海 / 底部 home 条） */
+@supports (padding: env(safe-area-inset-bottom)) {
+    body {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .auralis-footer {
+        padding-bottom: calc(var(--space-32, 32px) + env(safe-area-inset-bottom));
+    }
+}
+
+/* 顶部导航 Logo 在窄屏强制不换行（"Auralis 曜临" 不应拆成两行） */
+.header-sticky a[href="index.html"] {
+    white-space: nowrap;
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}

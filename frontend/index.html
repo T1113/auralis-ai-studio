@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auralis - AI Portrait Studio</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">✨</span>
+        AURALIS
+      </div>
+      <p class="subtitle">AI-Powered Portrait & ID Photo Studio</p>
+    </header>
+
+    <main class="main-content">
+      <!-- Upload Zone -->
+      <section class="upload-zone" id="uploadZone">
+        <div class="upload-content" id="uploadContent">
+          <div class="upload-icon">📸</div>
+          <h3>Drag & Drop your photo here</h3>
+          <p>or click to browse from your device</p>
+          <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp" hidden>
+          <button class="btn primary-btn" onclick="document.getElementById('fileInput').click()">Select Photo</button>
+        </div>
+        <img id="imagePreview" class="image-preview hidden" alt="Uploaded Preview">
+      </section>
+
+      <!-- Settings Panel -->
+      <section class="settings-panel glass-panel">
+        <h3>Photo Settings</h3>
+        
+        <div class="setting-group">
+          <label>Style</label>
+          <div class="options-grid">
+            <button class="option-btn active" data-style="id-photo">ID Photo</button>
+            <button class="option-btn" data-style="professional">Professional</button>
+            <button class="option-btn" data-style="artistic">Artistic</button>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label>Background Color (ID Photo)</label>
+          <div class="color-picker">
+            <div class="color-circle bg-blue active" data-color="blue"></div>
+            <div class="color-circle bg-red" data-color="red"></div>
+            <div class="color-circle bg-white" data-color="white"></div>
+          </div>
+        </div>
+
+        <button class="btn generate-btn" id="generateBtn" disabled>
+          <span class="btn-text">Generate with AI</span>
+          <div class="spinner hidden" id="loadingSpinner"></div>
+        </button>
+      </section>
+
+      <!-- Result Area -->
+      <section class="result-area glass-panel hidden" id="resultArea">
+        <h3>Your AI Portrait</h3>
+        <div class="result-image-container">
+          <img id="resultImage" alt="AI Generated Portrait">
+          <div class="scanline"></div>
+        </div>
+        <div class="result-actions">
+          <button class="btn secondary-btn" id="resetBtn">Generate Another</button>
+          <button class="btn primary-btn" id="downloadBtn">Download HD</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Powered by Auralis AI Core & OpenAI
+    </footer>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

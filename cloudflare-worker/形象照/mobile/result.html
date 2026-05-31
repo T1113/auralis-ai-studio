@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#fdfdff">
+    <title>生成结果 · Auralis 曜临</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../assets/css/system.css">
+    <link rel="stylesheet" href="./_mobile.css">
+
+    <style>
+        .summary {
+            margin-bottom: 16px;
+        }
+        .summary__meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-bottom: 12px;
+        }
+        .summary__meta strong {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-semibold);
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .result-card {
+            position: relative;
+            aspect-ratio: 4/5;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--color-surface-subtle);
+            cursor: pointer;
+        }
+        .result-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .result-card__label {
+            position: absolute;
+            left: 8px;
+            bottom: 8px;
+            padding: 3px 8px;
+            background: rgba(23, 24, 28, 0.7);
+            color: var(--color-text-inverse);
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: var(--weight-medium);
+            line-height: 1.3;
+        }
+        .result-card[data-ref="1"]::after {
+            content: "原图";
+            position: absolute;
+            left: 8px;
+            top: 8px;
+            padding: 3px 7px;
+            background: rgba(252, 252, 253, 0.85);
+            color: var(--color-text-secondary);
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: var(--weight-medium);
+        }
+
+        .empty {
+            text-align: center;
+            padding: 48px 16px;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        /* Lightbox */
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(23, 24, 28, 0.95);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+        .lightbox.is-open { display: flex; }
+        .lightbox__top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: env(safe-area-inset-top) 8px 0 8px;
+            color: var(--color-text-inverse);
+        }
+        .lightbox__close {
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: transparent;
+            color: var(--color-text-inverse);
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .lightbox__title {
+            font-size: 14px;
+            font-weight: var(--weight-medium);
+        }
+        .lightbox__body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .lightbox__img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: var(--radius-md);
+        }
+        .lightbox__actions {
+            display: flex;
+            gap: 8px;
+            padding: 16px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+        .lightbox__actions .m-btn {
+            flex: 1;
+        }
+        .lightbox__actions .m-btn--ghost {
+            color: var(--color-text-inverse);
+            border: 1px solid rgba(252, 252, 253, 0.3);
+        }
+
+        .unlock-banner {
+            padding: 14px 16px;
+            background: var(--color-surface-elevated);
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .unlock-banner__icon {
+            font-size: 18px;
+        }
+        .unlock-banner__text {
+            flex: 1;
+            font-size: 13.5px;
+            color: var(--color-text-secondary);
+            line-height: 1.45;
+        }
+        .unlock-banner__text strong {
+            color: var(--color-text-primary);
+            font-weight: var(--weight-semibold);
+        }
+    </style>
+</head>
+<body>
+    <div class="m-page">
+        <header class="m-header">
+            <a href="./dashboard.html" class="m-header__back" aria-label="返回">‹</a>
+            <span class="m-header__title">你的形象照</span>
+            <button class="m-icon-btn" id="btn-redo" aria-label="重新生成" style="font-size:18px;">↻</button>
+        </header>
+
+        <main class="m-content">
+            <div class="summary">
+                <div class="summary__meta">
+                    <span id="result-status">加载中…</span>
+                </div>
+            </div>
+
+            <div class="unlock-banner" id="unlock-banner" hidden>
+                <div class="unlock-banner__icon">🔓</div>
+                <div class="unlock-banner__text">
+                    <strong>支付后即可下载高清原图。</strong> 当前为预览模式。
+                </div>
+            </div>
+
+            <div class="results-grid" id="results-grid"></div>
+
+            <div class="empty" id="empty" hidden>
+                还没有生成完成的图片。
+            </div>
+        </main>
+
+        <div class="m-cta-dock">
+            <div style="display:flex; gap:8px;">
+                <a href="./upload.html" class="m-btn m-btn--ghost" style="flex:1;">重新上传</a>
+                <button class="m-btn m-btn--primary" style="flex:2;" id="btn-unlock">解锁高清下载</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox__top">
+            <button class="lightbox__close" id="lb-close">×</button>
+            <span class="lightbox__title" id="lb-title"></span>
+            <span style="width:44px"></span>
+        </div>
+        <div class="lightbox__body">
+            <img class="lightbox__img" id="lb-img" alt="">
+        </div>
+        <div class="lightbox__actions">
+            <button class="m-btn m-btn--ghost" id="lb-redo">重新生成</button>
+            <button class="m-btn m-btn--primary" id="lb-download">下载</button>
+        </div>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const batchId = params.get('batchId') || sessionStorage.getItem('impeccable_current_job_id');
+        if (!batchId) window.location.href = './upload.html';
+
+        const showToast = (m, t) => window.ImpeccableApp && window.ImpeccableApp.showToast
+            ? window.ImpeccableApp.showToast(m, t) : alert(m);
+
+        const grid = document.getElementById('results-grid');
+        const empty = document.getElementById('empty');
+        const statusEl = document.getElementById('result-status');
+        const unlockBanner = document.getElementById('unlock-banner');
+        const lb = document.getElementById('lightbox');
+        const lbImg = document.getElementById('lb-img');
+        const lbTitle = document.getElementById('lb-title');
+
+        let results = [];
+        let isUnlocked = false;
+        let currentResult = null;
+
+        async function load() {
+            try {
+                const response = await window.ImpeccableApp.apiFetch('/api/jobs/' + encodeURIComponent(batchId));
+                const job = response.job;
+                results = job.results || [];
+                isUnlocked = !!(job.unlockedAt || results.some(r => r.unlocked));
+                unlockBanner.hidden = isUnlocked;
+                document.getElementById('btn-unlock').textContent = isUnlocked ? '查看可下载文件' : '解锁高清下载';
+                statusEl.textContent = isUnlocked
+                    ? '✓ 已解锁 · 可下载高清原图'
+                    : '预览模式 · ' + results.filter(r => r.imageUrl && !r.referenceOnly).length + ' 张已生成';
+                render();
+            } catch (err) {
+                statusEl.textContent = '加载失败';
+                showToast(err.message || '加载结果失败', 'error');
+            }
+        }
+
+        function render() {
+            grid.innerHTML = '';
+            const shown = results.filter(r => r.imageUrl);
+            if (shown.length === 0) {
+                empty.hidden = false;
+                return;
+            }
+            empty.hidden = true;
+            shown.forEach((r, i) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.dataset.ref = r.referenceOnly ? '1' : '0';
+                card.innerHTML = `
+                    <img src="${r.imageUrl}" alt="${r.label || ('形象照 ' + (i+1))}">
+                    ${r.label ? `<span class="result-card__label">${r.label}</span>` : ''}
+                `;
+                card.addEventListener('click', () => openLightbox(r));
+                grid.appendChild(card);
+            });
+        }
+
+        function openLightbox(result) {
+            currentResult = result;
+            lbImg.src = result.imageUrl;
+            lbTitle.textContent = result.label || '形象照';
+            lb.classList.add('is-open');
+        }
+        document.getElementById('lb-close').addEventListener('click', () => lb.classList.remove('is-open'));
+        document.getElementById('lb-redo').addEventListener('click', () => { window.location.href = './upload.html'; });
+        document.getElementById('lb-download').addEventListener('click', () => {
+            if (!isUnlocked) {
+                lb.classList.remove('is-open');
+                gotoUnlock();
+                return;
+            }
+            if (!currentResult) return;
+            const url = currentResult.exportUrls && (currentResult.exportUrls.clean || currentResult.exportUrls.branded);
+            if (!url) {
+                showToast('暂无可下载文件', 'error');
+                return;
+            }
+            window.location.href = url;
+        });
+
+        document.getElementById('btn-redo').addEventListener('click', () => {
+            window.location.href = './upload.html';
+        });
+        document.getElementById('btn-unlock').addEventListener('click', gotoUnlock);
+
+        function gotoUnlock() {
+            // Hand off to the existing desktop checkout flow (kept untouched in v1)
+            window.location.href = '../checkout.html?batchId=' + encodeURIComponent(batchId);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.ImpeccableApp && window.ImpeccableApp.syncSession) {
+                const session = await window.ImpeccableApp.syncSession();
+                if (!session.authenticated) {
+                    window.location.href = './login.html';
+                    return;
+                }
+            }
+            load();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# 放到 /etc/systemd/system/impeccable.service
+# 然后：systemctl daemon-reload && systemctl enable --now impeccable
+# 适合不用 docker、直接跑 gunicorn 的部署方式。
+
+[Unit]
+Description=Impeccable AI Headshot Flask app (gunicorn)
+After=network.target
+
+[Service]
+Type=notify
+User=app
+Group=app
+WorkingDirectory=/opt/impeccable
+EnvironmentFile=/etc/impeccable.env
+ExecStart=/opt/impeccable/.venv/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

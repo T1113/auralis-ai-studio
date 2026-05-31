@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#fdfdff">
+    <title>生成中 · Auralis 曜临</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../assets/css/system.css">
+    <link rel="stylesheet" href="./_mobile.css">
+
+    <style>
+        .gen-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 56px);
+            padding: 24px 16px;
+            text-align: center;
+        }
+        .ring {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 24px;
+            border-radius: 50%;
+            background:
+                conic-gradient(var(--color-brand-primary) calc(var(--p, 0) * 1%),
+                               var(--color-surface-elevated) 0);
+            transition: background 0.5s ease;
+        }
+        .ring::after {
+            content: "";
+            position: absolute;
+            inset: 12px;
+            border-radius: 50%;
+            background: var(--color-surface-pure);
+        }
+        .ring__inner {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+        .ring__pct {
+            font-size: 32px;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            line-height: 1;
+        }
+        .ring__label {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
+        }
+
+        .gen-title {
+            font-size: 20px;
+            font-weight: var(--weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 8px;
+        }
+        .gen-sub {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .tip-card {
+            width: 100%;
+            max-width: 360px;
+            padding: 16px;
+            background: var(--color-surface-subtle);
+            border-radius: var(--radius-lg);
+            text-align: left;
+            margin-top: 16px;
+        }
+        .tip-card__label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--color-text-tertiary);
+            margin-bottom: 6px;
+        }
+        .tip-card__text {
+            font-size: 14px;
+            color: var(--color-text-secondary);
+            line-height: 1.55;
+            transition: opacity 0.3s ease;
+        }
+
+        .error-card {
+            width: 100%;
+            max-width: 360px;
+            padding: 16px;
+            background: rgba(182, 74, 58, 0.08);
+            border: 1px solid var(--color-status-error);
+            border-radius: var(--radius-md);
+            color: var(--color-status-error);
+            text-align: left;
+            margin-top: 16px;
+            font-size: 13.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="m-page">
+        <header class="m-header">
+            <a href="./dashboard.html" class="m-header__back" aria-label="返回">‹</a>
+            <span class="m-header__title">生成中</span>
+            <span style="width:44px"></span>
+        </header>
+
+        <main class="m-content m-content--no-cta">
+            <div class="gen-wrap">
+                <div class="ring" id="ring" style="--p: 0;">
+                    <div class="ring__inner">
+                        <div class="ring__pct" id="ring-pct">0%</div>
+                        <div class="ring__label" id="ring-label">准备中…</div>
+                    </div>
+                </div>
+
+                <div class="gen-title">AI 正在为你生成形象照</div>
+                <div class="gen-sub">大约需要 1–3 分钟，请保持页面打开</div>
+
+                <div class="tip-card">
+                    <div class="tip-card__label">小提示</div>
+                    <div class="tip-card__text" id="tip">完成后可下载多张不同风格的高清形象照。</div>
+                </div>
+
+                <div class="error-card" id="error-card" hidden></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const jobId = params.get('jobId') || sessionStorage.getItem('impeccable_current_job_id');
+
+        if (!jobId) {
+            window.location.href = './upload.html';
+        }
+
+        const ringEl = document.getElementById('ring');
+        const pctEl = document.getElementById('ring-pct');
+        const labelEl = document.getElementById('ring-label');
+        const tipEl = document.getElementById('tip');
+        const errorCard = document.getElementById('error-card');
+
+        const TIPS = [
+            '完成后可下载多张不同风格的高清形象照。',
+            '你的照片端到端加密，不会用于训练。',
+            '可重新生成或微调风格细节。',
+            '生成结果可直接用于领英、简历与签证。'
+        ];
+        let tipIdx = 0;
+        setInterval(() => {
+            tipIdx = (tipIdx + 1) % TIPS.length;
+            tipEl.style.opacity = 0;
+            setTimeout(() => {
+                tipEl.textContent = TIPS[tipIdx];
+                tipEl.style.opacity = 1;
+            }, 200);
+        }, 4000);
+
+        let progress = 0;
+        let totalDuration = 120000; // 2 min default
+        const startTs = Date.now();
+        let pollingTimer = null;
+        let tickTimer = null;
+
+        function setProgress(p) {
+            progress = Math.max(progress, Math.min(100, p));
+            ringEl.style.setProperty('--p', progress);
+            pctEl.textContent = progress + '%';
+        }
+        function showError(msg) {
+            errorCard.hidden = false;
+            errorCard.textContent = msg;
+            labelEl.textContent = '出错了';
+        }
+
+        async function refresh() {
+            try {
+                const response = await window.ImpeccableApp.apiFetch('/api/jobs/' + encodeURIComponent(jobId));
+                const job = response.job;
+                if (typeof job.previewReadyAt === 'number' && typeof job.createdAt === 'number') {
+                    const span = job.previewReadyAt - job.createdAt;
+                    if (span > 45000) totalDuration = span;
+                }
+                const elapsed = Math.max(0, Date.now() - (job.createdAt || startTs));
+                const computed = Math.min(88, Math.round((elapsed / totalDuration) * 88));
+                setProgress(computed);
+                labelEl.textContent = job.status === 'queued' ? '排队中…' : '处理中…';
+
+                const hasResults = Array.isArray(job.results)
+                    && job.results.some(r => r.imageUrl && r.referenceOnly !== true);
+
+                if (job.status === 'failed') {
+                    clearInterval(pollingTimer);
+                    clearInterval(tickTimer);
+                    showError((job.generation && job.generation.error) || '生成失败，请返回重新创建任务。');
+                    return;
+                }
+                if (hasResults || job.status === 'preview' || job.status === 'unlocked') {
+                    setProgress(100);
+                    labelEl.textContent = '已完成';
+                    clearInterval(pollingTimer);
+                    clearInterval(tickTimer);
+                    setTimeout(() => {
+                        window.location.href = './result.html?batchId=' + encodeURIComponent(jobId);
+                    }, 400);
+                }
+            } catch (err) {
+                showError(err.message || '获取进度失败，正在重试…');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.ImpeccableApp && window.ImpeccableApp.syncSession) {
+                const session = await window.ImpeccableApp.syncSession();
+                if (!session.authenticated) {
+                    window.location.href = './login.html';
+                    return;
+                }
+            }
+            // soft progress ticker (gradually adds 1% every ~3s up to 88)
+            tickTimer = setInterval(() => {
+                if (progress < 88) setProgress(progress + 1);
+            }, 3000);
+            // poll backend every 1.5s
+            pollingTimer = setInterval(refresh, 1500);
+            refresh();
+        });
+    </script>
+</body>
+</html>
