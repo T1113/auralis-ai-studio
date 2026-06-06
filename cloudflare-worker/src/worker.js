@@ -720,6 +720,10 @@ async function handleJobCreation(request, env, ctx) {
       } else {
         await task;
       }
+    } else {
+      await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
+        .bind("completed", Date.now(), jobId)
+        .run();
     }
   } catch (error) {
       if (generationCostCredits > 0) {
@@ -935,7 +939,7 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
   }
 
   const now = Date.now();
-  await env.DB.prepare(
+  const decrement = await env.DB.prepare(
     `UPDATE jobs
      SET unlocked_at = NULL,
          free_regenerations_remaining = free_regenerations_remaining - 1,
@@ -945,6 +949,10 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
   )
     .bind(now, now + 18000, jobId)
     .run();
+
+  if (!decrement.meta || decrement.meta.changes !== 1) {
+    return jsonResponse({ error: "免费重绘次数已用完。请重新创建生成任务并扣除积分。" }, 402);
+  }
 
   await env.DB.prepare("DELETE FROM job_results WHERE job_id = ?")
     .bind(jobId)
@@ -983,6 +991,10 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
     } else {
       await task;
     }
+  } else {
+    await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
+      .bind("completed", Date.now(), jobId)
+      .run();
   }
 
   return jsonResponse({
@@ -1578,7 +1590,10 @@ async function ensureBillingSchema(env) {
     `UPDATE jobs
      SET charged_at = COALESCE(charged_at, created_at),
          generation_cost_credits = COALESCE(generation_cost_credits, ?),
-         free_regenerations_remaining = COALESCE(free_regenerations_remaining, ?)`
+         free_regenerations_remaining = COALESCE(free_regenerations_remaining, ?)
+     WHERE charged_at IS NULL
+        OR generation_cost_credits IS NULL
+        OR free_regenerations_remaining IS NULL`
   )
     .bind(DEFAULT_GENERATION_COST_CREDITS, DEFAULT_FREE_REGENERATIONS)
     .run();
@@ -1792,12 +1807,16 @@ async function markPaymentOrderPaid(env, orderId, expectedUserId) {
 
   if (order.status !== "paid") {
     const now = Date.now();
-    await env.DB.prepare("UPDATE payment_orders SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?")
+    const upd = await env.DB.prepare(
+      "UPDATE payment_orders SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ? AND status != 'paid'"
+    )
       .bind(now, now, order.id)
       .run();
-    await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
-      .bind(Number(order.credits || 0), order.user_id)
-      .run();
+    if (upd.meta && upd.meta.changes === 1) {
+      await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
+        .bind(Number(order.credits || 0), order.user_id)
+        .run();
+    }
   }
 
   const user = await env.DB.prepare("SELECT id, name, email, role, credits FROM users WHERE id = ?")
@@ -2017,7 +2036,7 @@ async function loadJobResultItems(env, jobId, uploads) {
 
 async function processJobGeneration(env, jobId) {
   const job = await env.DB.prepare(
-    `SELECT id, user_id, style_summary
+    `SELECT id, user_id, style_summary, generation_cost_credits, charged_at
      FROM jobs
      WHERE id = ?`
   )
@@ -2120,6 +2139,23 @@ async function processJobGeneration(env, jobId) {
     await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
       .bind("failed", Date.now(), jobId)
       .run();
+
+    // Refund the credits charged for this job, exactly once. We use charged_at as
+    // the "refunded" sentinel: clearing it atomically prevents double refunds from
+    // concurrent stale-generation retries.
+    const refundCredits = Number(job.generation_cost_credits || 0);
+    if (refundCredits > 0 && job.charged_at) {
+      const cleared = await env.DB.prepare(
+        "UPDATE jobs SET charged_at = NULL, updated_at = ? WHERE id = ? AND charged_at IS NOT NULL"
+      )
+        .bind(Date.now(), jobId)
+        .run();
+      if (cleared.meta && cleared.meta.changes === 1) {
+        await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
+          .bind(refundCredits, job.user_id)
+          .run();
+      }
+    }
   }
 }
 
@@ -2600,6 +2636,7 @@ async function handleGoogleLogin(request, env, url) {
   }
 
   const redirectUri = `${url.origin}/api/auth/google/callback`;
+  const state = randomHex(16);
   const googleUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   googleUrl.searchParams.set("client_id", clientId);
   googleUrl.searchParams.set("redirect_uri", redirectUri);
@@ -2607,8 +2644,31 @@ async function handleGoogleLogin(request, env, url) {
   googleUrl.searchParams.set("scope", "openid email profile");
   googleUrl.searchParams.set("access_type", "online");
   googleUrl.searchParams.set("prompt", "select_account");
+  googleUrl.searchParams.set("state", state);
 
-  return Response.redirect(googleUrl.toString(), 302);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: googleUrl.toString(),
+      "Set-Cookie": buildOAuthStateCookie(state, request)
+    }
+  });
+}
+
+function buildOAuthStateCookie(state, request) {
+  const parts = [`oauth_state=${state}`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=600"];
+  if (shouldUseSecureCookie(request)) {
+    parts.splice(3, 0, "Secure");
+  }
+  return parts.join("; ");
+}
+
+function buildExpiredOAuthStateCookie(request) {
+  const parts = ["oauth_state=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  if (shouldUseSecureCookie(request)) {
+    parts.splice(3, 0, "Secure");
+  }
+  return parts.join("; ");
 }
 
 async function handleGoogleCallback(request, env, url) {
@@ -2616,6 +2676,12 @@ async function handleGoogleCallback(request, env, url) {
     const code = url.searchParams.get("code");
     if (!code) {
       return jsonResponse({ error: "Missing authorization code from Google." }, 400);
+    }
+
+    const returnedState = url.searchParams.get("state");
+    const expectedState = parseCookies(request.headers.get("Cookie")).oauth_state;
+    if (!returnedState || !expectedState || returnedState !== expectedState) {
+      return jsonResponse({ error: "Invalid OAuth state. Please retry login." }, 400);
     }
 
     const clientId = env.GOOGLE_CLIENT_ID;
@@ -2705,6 +2771,7 @@ async function handleGoogleCallback(request, env, url) {
     const sessionResponse = await createSessionResponse(env, request, user);
     const responseHeaders = new Headers(sessionResponse.headers);
     responseHeaders.set("Location", "/dashboard.html");
+    responseHeaders.append("Set-Cookie", buildExpiredOAuthStateCookie(request));
 
     return new Response(null, {
       status: 302,
