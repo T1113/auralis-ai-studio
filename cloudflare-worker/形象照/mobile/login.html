@@ -116,6 +116,9 @@
                         <label class="m-label" for="login-pswd">密码</label>
                         <input class="m-input" type="password" id="login-pswd" autocomplete="current-password" required placeholder="至少 8 位">
                     </div>
+                    <div style="text-align: right;">
+                        <a href="#" id="forgot-link" style="font-size: 13px; color: #0b57d0; text-decoration: none;">忘记密码？</a>
+                    </div>
                     <button type="submit" class="m-btn m-btn--primary m-btn--block" style="margin-top:8px;">登录</button>
                 </form>
 
@@ -150,7 +153,7 @@
                     </div>
                     <div>
                         <label class="m-label" for="reg-password">密码</label>
-                        <input class="m-input" type="password" id="reg-password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位，含大小写与数字">
+                        <input class="m-input" type="password" id="reg-password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位，含字母和数字">
                     </div>
                     <div>
                         <label class="m-label" for="reg-password-confirm">再次输入密码</label>
@@ -206,6 +209,25 @@
             }
         };
 
+        document.getElementById('forgot-link').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const presetEmail = document.getElementById('login-email').value.trim();
+            const email = (window.prompt('请输入注册邮箱，我们会发送密码重置邮件：', presetEmail) || '').trim();
+            if (!email) return;
+            try {
+                const resp = await window.ImpeccableApp.apiFetch('/api/auth/forgot', {
+                    method: 'POST',
+                    body: JSON.stringify({ email })
+                });
+                showToast(resp.message || '重置邮件已发送，请查收。', 'success');
+                if (resp.devResetUrl) {
+                    window.location.href = resp.devResetUrl;
+                }
+            } catch (err) {
+                showToast(err.message || '发送失败，请稍后再试。', 'error');
+            }
+        });
+
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.submitter;
@@ -234,8 +256,8 @@
             e.preventDefault();
             const password = document.getElementById('reg-password').value;
             const confirm = document.getElementById('reg-password-confirm').value;
-            if (password.length < 8) {
-                showToast('密码至少 8 位。', 'error');
+            if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+                showToast('密码至少 8 位，并同时包含字母和数字。', 'error');
                 return;
             }
             if (password !== confirm) {

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重置密码 - AI 职业形象照</title>
+    <meta name="robots" content="noindex">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="./assets/css/system.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/layout.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/components.css?v=20260522b">
+    <link rel="stylesheet" href="./assets/css/mobile.css?v=20260522b">
+
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--color-surface-subtle, #f6f8fb);
+        }
+        .reset-card {
+            width: min(420px, 92vw);
+            background: var(--color-surface-pure, #fff);
+            border: 1px solid var(--color-border-subtle, #e6e9f0);
+            border-radius: var(--radius-lg, 16px);
+            padding: var(--space-32, 32px);
+        }
+        .reset-logo {
+            font-weight: var(--weight-semibold, 600);
+            font-size: 1.1rem;
+            color: var(--color-text-primary);
+            display: inline-block;
+            margin-bottom: var(--space-16, 16px);
+        }
+        .form-floating { position: relative; margin-bottom: var(--space-16, 16px); }
+        .form-floating input {
+            width: 100%;
+            padding: 20px 14px 8px;
+            border: 1px solid var(--color-border-strong, #c4cad6);
+            border-radius: var(--radius-md, 10px);
+            font-size: var(--text-body, 15px);
+            background: transparent;
+        }
+        .form-floating label {
+            position: absolute;
+            top: 50%;
+            left: 14px;
+            transform: translateY(-50%);
+            color: var(--color-text-tertiary, #8a93a6);
+            font-size: var(--text-body, 15px);
+            pointer-events: none;
+            transition: all 0.15s ease;
+        }
+        .form-floating input:focus + label,
+        .form-floating input:not(:placeholder-shown) + label {
+            top: 12px;
+            font-size: 11px;
+        }
+        .reset-hint {
+            font-size: var(--text-small, 13px);
+            color: var(--color-text-secondary, #5b6472);
+            margin: 0 0 var(--space-16, 16px);
+        }
+        .reset-message {
+            display: none;
+            padding: var(--space-12, 12px) var(--space-16, 16px);
+            border-radius: var(--radius-md, 10px);
+            font-size: var(--text-small, 13px);
+            margin-bottom: var(--space-16, 16px);
+        }
+        .reset-message.is-error { display: block; background: #fbefec; border: 1px solid #edc9c1; color: #9b2c1f; }
+        .reset-message.is-success { display: block; background: #eef8f3; border: 1px solid #cce8da; color: #14532d; }
+    </style>
+</head>
+<body>
+    <div class="reset-card">
+        <a href="index.html" class="reset-logo">Auralis<span style="color:var(--color-text-secondary); margin-left: 6px; font-size: .82em; letter-spacing: .08em;">曜临</span></a>
+        <h1 style="font-size: var(--text-h3, 1.3rem); margin: 0 0 8px;">设置新密码</h1>
+        <p class="reset-hint">密码至少 8 位，并同时包含字母和数字。</p>
+
+        <div id="reset-message" class="reset-message"></div>
+
+        <form id="reset-form">
+            <div class="form-floating">
+                <input type="password" id="new-password" placeholder=" " required minlength="8" autocomplete="new-password">
+                <label for="new-password">新密码</label>
+            </div>
+            <div class="form-floating">
+                <input type="password" id="confirm-password" placeholder=" " required minlength="8" autocomplete="new-password">
+                <label for="confirm-password">再次确认新密码</label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;" id="reset-submit">重置密码</button>
+        </form>
+
+        <div style="margin-top: var(--space-16, 16px); text-align: center; font-size: var(--text-small, 13px);">
+            <a href="login.html" style="color: #0b57d0; text-decoration: none;">返回登录</a>
+        </div>
+    </div>
+
+    <script src="./assets/js/app.js"></script>
+    <script>
+        const token = new URLSearchParams(window.location.search).get('token') || '';
+        const messageBox = document.getElementById('reset-message');
+        const form = document.getElementById('reset-form');
+
+        function showMessage(text, type) {
+            messageBox.className = 'reset-message ' + (type === 'success' ? 'is-success' : 'is-error');
+            messageBox.innerText = text;
+        }
+
+        if (!token) {
+            showMessage('重置链接无效或已过期，请回到登录页重新发起找回密码。', 'error');
+            form.style.display = 'none';
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const password = document.getElementById('new-password').value;
+            const confirm = document.getElementById('confirm-password').value;
+
+            if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+                showMessage('密码至少 8 位，并同时包含字母和数字。', 'error');
+                return;
+            }
+            if (password !== confirm) {
+                showMessage('两次输入的密码不一致。', 'error');
+                return;
+            }
+
+            const button = document.getElementById('reset-submit');
+            button.disabled = true;
+            button.innerText = '正在重置...';
+            try {
+                const resp = await window.ImpeccableApp.apiFetch('/api/auth/reset', {
+                    method: 'POST',
+                    body: JSON.stringify({ token, password })
+                });
+                showMessage(resp.message || '密码已重置，请使用新密码登录。', 'success');
+                form.style.display = 'none';
+                setTimeout(() => { window.location.href = 'login.html'; }, 2000);
+            } catch (error) {
+                button.disabled = false;
+                button.innerText = '重置密码';
+                showMessage(error.message || '重置失败，请重新发起找回密码。', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

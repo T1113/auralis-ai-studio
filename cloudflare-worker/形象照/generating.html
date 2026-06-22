@@ -574,9 +574,10 @@
             await refreshJobState();
             pollingTimer = setInterval(refreshJobState, 1500);
             // Smooth ticker so the bar feels alive between API polls.
+            // 平滑过渡只补到 80%，真正的完成信号来自后端结果。
             tickTimer = setInterval(() => {
-                if (progress < 88) {
-                    const inc = Math.max(0.2, (88 - progress) * 0.014);
+                if (progress < 80) {
+                    const inc = Math.max(0.15, (80 - progress) * 0.012);
                     setProgress(progress + inc);
                 }
                 updateTimers();
@@ -586,6 +587,7 @@
         async function refreshJobState() {
             try {
                 const response = await window.ImpeccableApp.apiFetch("/api/jobs/" + encodeURIComponent(currentJobId));
+                errorBanner.classList.remove('is-visible');
                 const job = response.job;
                 const hasReadyResults = Array.isArray(job.results)
                     && job.results.some((result) => result.imageUrl && result.referenceOnly !== true);
@@ -600,9 +602,15 @@
                     if (span > 45000) totalDuration = span;
                 }
 
+                // 真实进度：以已完成的成片数为主信号，时间估算只作为下限平滑。
+                const totalResults = Math.max(1, Number(job.resultCount) || 1);
+                const readyCount = Array.isArray(job.results)
+                    ? job.results.filter((r) => r.imageUrl && r.referenceOnly !== true).length
+                    : 0;
+                const realProgress = readyCount > 0 ? 20 + Math.round((readyCount / totalResults) * 75) : 0;
                 const elapsed = Math.max(0, Date.now() - (job.createdAt || startTs));
-                const computedProgress = Math.min(88, Math.round((elapsed / totalDuration) * 88));
-                setProgress(computedProgress);
+                const timeProgress = Math.min(80, Math.round((elapsed / totalDuration) * 80));
+                setProgress(Math.max(realProgress, timeProgress));
                 updateTimers(job.secondsRemaining);
 
                 if (job.status === "failed") {
@@ -611,6 +619,11 @@
                     const msg = (job.generation && job.generation.error) || "生成失败，请返回重新创建任务。";
                     showError(msg);
                     progressLabel.innerText = '生成未完成';
+                    errorBanner.insertAdjacentHTML('afterend',
+                        '<div style="margin-top:12px; display:flex; gap:8px;">' +
+                        '<a href="upload.html" class="btn btn-primary" style="text-decoration:none;">重新创建任务</a>' +
+                        '<a href="support.html" class="btn btn-ghost" style="text-decoration:none;">联系客服</a>' +
+                        '</div>');
                     return;
                 }
 

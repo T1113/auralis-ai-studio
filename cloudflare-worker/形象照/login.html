@@ -405,12 +405,10 @@
                 </div>
                 <div id="reg-caps-lock-help" class="caps-lock-help" role="status" aria-live="polite">已开启大写锁定，密码区分大小写。</div>
                 <div class="password-rules" id="password-rules" aria-live="polite">
-                    <p class="password-rules-title">密码需要同时满足以下规则</p>
+                    <p class="password-rules-title">密码需要满足以下规则</p>
                     <div class="password-rule" data-rule="length">至少 8 位字符</div>
-                    <div class="password-rule" data-rule="uppercase">包含大写字母 A-Z</div>
-                    <div class="password-rule" data-rule="lowercase">包含小写字母 a-z</div>
-                    <div class="password-rule" data-rule="number">包含数字 0-9</div>
-                    <div class="password-rule" data-rule="special">包含特殊符号，例如 ! @ #</div>
+                    <div class="password-rule" data-rule="letter">包含字母</div>
+                    <div class="password-rule" data-rule="number">包含数字</div>
                 </div>
                 <div class="form-floating has-password-toggle" style="margin-bottom: var(--space-8);">
                     <input type="password" id="reg-password-confirm" placeholder=" " required minlength="8" autocomplete="new-password">
@@ -431,14 +429,20 @@
 
     <!-- Forgot Password Modal -->
     <div id="forgot-modal" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content" style="text-align: left;">
             <h3 class="mb-md">找回密码</h3>
-            <p class="mb-lg" style="color: var(--color-text-secondary); font-size: var(--text-small);">请联系系统管理员或发送邮件至支持邮箱重置您的密码。</p>
-            <div style="background: var(--color-surface-subtle); padding: var(--space-16); border-radius: var(--radius-md); margin-bottom: var(--space-24);">
-                <div style="font-weight: 600; margin-bottom: 4px;">客服微信号</div>
-                <div style="color: var(--color-text-primary); font-family: monospace;">Auralis_Support</div>
-            </div>
-            <button class="btn btn-primary" style="width: 100%;" onclick="closeForgotModal()">知道了</button>
+            <form id="forgot-form">
+                <p class="mb-lg" style="color: var(--color-text-secondary); font-size: var(--text-small);">输入注册邮箱，我们会发送一封密码重置邮件（链接 30 分钟内有效）。</p>
+                <div class="form-floating">
+                    <input type="email" id="forgot-email" placeholder=" " required>
+                    <label for="forgot-email">邮箱地址</label>
+                </div>
+                <div id="forgot-result" style="display: none; background: var(--color-surface-subtle); padding: var(--space-16); border-radius: var(--radius-md); margin-bottom: var(--space-16); font-size: var(--text-small); color: var(--color-text-secondary); word-break: break-all;"></div>
+                <div class="flex-row gap-sm" style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-ghost" style="flex: 1;" onclick="closeForgotModal()">取消</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 2;" id="forgot-submit">发送重置邮件</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -454,11 +458,38 @@
 
         function openForgotModal() {
             document.getElementById('forgot-modal').style.display = 'flex';
+            document.getElementById('forgot-email').value = document.getElementById('login-email').value || '';
+            document.getElementById('forgot-result').style.display = 'none';
         }
 
         function closeForgotModal() {
             document.getElementById('forgot-modal').style.display = 'none';
         }
+
+        document.getElementById('forgot-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = document.getElementById('forgot-submit');
+            const resultBox = document.getElementById('forgot-result');
+            button.disabled = true;
+            button.innerText = '正在发送...';
+            try {
+                const resp = await window.ImpeccableApp.apiFetch('/api/auth/forgot', {
+                    method: 'POST',
+                    body: JSON.stringify({ email: document.getElementById('forgot-email').value.trim() })
+                });
+                resultBox.style.display = 'block';
+                resultBox.innerText = resp.message || '重置邮件已发送，请查收。';
+                if (resp.devResetUrl) {
+                    // 本地联调模式：直接展示重置链接
+                    resultBox.innerHTML += '<br><a href="' + resp.devResetUrl + '" style="color:#0b57d0;">本地测试：点此直接重置</a>';
+                }
+                button.innerText = '已发送';
+            } catch (error) {
+                button.disabled = false;
+                button.innerText = '发送重置邮件';
+                showToast(error.message || '发送失败，请稍后再试。', 'error');
+            }
+        });
 
         function switchMainView(mode) {
             const isRegister = mode === 'register';
@@ -470,10 +501,8 @@
 
         const passwordRules = {
             length: (value) => value.length >= 8,
-            uppercase: (value) => /[A-Z]/.test(value),
-            lowercase: (value) => /[a-z]/.test(value),
-            number: (value) => /\d/.test(value),
-            special: (value) => /[^A-Za-z0-9]/.test(value)
+            letter: (value) => /[A-Za-z]/.test(value),
+            number: (value) => /\d/.test(value)
         };
 
         function getPasswordState(password) {
@@ -580,7 +609,7 @@
             const confirmPassword = document.getElementById('reg-password-confirm').value;
             if (!isPasswordValid(password)) {
                 updatePasswordFeedback();
-                showToast('密码需同时包含 8 位以上、大写字母、小写字母、数字和特殊符号。', 'error');
+                showToast('密码需至少 8 位，并同时包含字母和数字。', 'error');
                 return;
             }
             if (password !== confirmPassword) {
@@ -612,6 +641,15 @@
         });
 
         document.addEventListener('DOMContentLoaded', async () => {
+            // Google 登录也走 next 回跳，登录后回到原流程
+            const nextParam = new URLSearchParams(window.location.search).get('next')
+                || sessionStorage.getItem('impeccable_post_auth_redirect') || '';
+            if (nextParam && !nextParam.startsWith('http') && !nextParam.includes('//')) {
+                const googleLink = document.querySelector('a[href="/api/auth/google/login"]');
+                if (googleLink) {
+                    googleLink.href = '/api/auth/google/login?next=' + encodeURIComponent(nextParam);
+                }
+            }
             bindPasswordToggles();
             bindCapsLockHelp('login-pswd', 'login-caps-lock-help');
             bindCapsLockHelp('reg-password', 'reg-caps-lock-help');
