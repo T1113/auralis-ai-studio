@@ -132,8 +132,31 @@ export default {
         request
       );
     }
+  },
+
+  // 定时清理过期的限流计数与失效的重置 token，防止表无限增长。
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(cleanupExpiredRecords(env));
   }
 };
+
+// 清理 24 小时前的限流窗口，以及已使用或已过期 24 小时的重置 token。
+async function cleanupExpiredRecords(env) {
+  if (!env.DB) {
+    return;
+  }
+  const now = Date.now();
+  try {
+    await env.DB.prepare("DELETE FROM rate_limits WHERE window_start < ?")
+      .bind(now - 24 * 60 * 60 * 1000)
+      .run();
+    await env.DB.prepare("DELETE FROM password_resets WHERE expires_at < ? OR used_at IS NOT NULL")
+      .bind(now - 24 * 60 * 60 * 1000)
+      .run();
+  } catch (error) {
+    console.error("cleanup expired records failed", error);
+  }
+}
 
 async function handleAssetRequest(request, env, url) {
   let response = await env.ASSETS.fetch(request);
@@ -1174,6 +1197,28 @@ async function handleJobCheckout(request, env, pathname) {
     );
   }
 
+  // 复用同一任务、同一套餐、同一金额的待支付订单，避免重复点击生成多个付款码导致重复扣款。
+  const existing = await env.DB.prepare(
+    `SELECT id, out_trade_no, code_url, amount_cents, credits
+     FROM payment_orders
+     WHERE job_id = ? AND user_id = ? AND status = 'pending' AND amount_cents = ?
+     ORDER BY created_at DESC LIMIT 1`
+  )
+    .bind(jobId, session.user.id, pkg.amountCents)
+    .first();
+  if (existing && (!paymentMode.ready || existing.code_url)) {
+    return jsonResponse({
+      orderId: existing.id,
+      outTradeNo: existing.out_trade_no,
+      mode: paymentMode.ready ? "wechat_native" : "mock",
+      amountCents: Number(existing.amount_cents),
+      credits: Number(existing.credits),
+      codeUrl: existing.code_url || "",
+      alreadyUnlocked: false,
+      reused: true
+    });
+  }
+
   const orderId = randomId("pay");
   const outTradeNo = `${orderId}_${Date.now()}`;
   const now = Date.now();
@@ -1631,9 +1676,25 @@ async function handleMockPaymentConfirm(request, env) {
 }
 
 async function handleWeChatPaymentNotify(request, env) {
-  const payload = await readJson(request);
   if (!isWeChatPayConfigured(env)) {
     return jsonResponse({ code: "FAIL", message: "wechat pay is not configured" }, 503);
+  }
+
+  // 读取原始报文用于验签（解析成 JSON 会丢失字节级一致性）。
+  const rawBody = await request.text();
+
+  // 验证微信平台证书签名：配置了公钥才校验，防止伪造的支付成功回调。
+  const signatureOk = await verifyWeChatNotifySignature(env, request, rawBody);
+  if (!signatureOk) {
+    console.error("wechat notify signature verification failed");
+    return jsonResponse({ code: "FAIL", message: "signature verification failed" }, 401);
+  }
+
+  let payload = {};
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {};
+  } catch (_error) {
+    return jsonResponse({ code: "FAIL", message: "invalid body" }, 400);
   }
 
   const transaction = await decryptWeChatNotifyResource(env, payload?.resource);
@@ -1644,14 +1705,59 @@ async function handleWeChatPaymentNotify(request, env) {
     return jsonResponse({ code: "SUCCESS", message: "notify accepted" });
   }
 
-  const order = await env.DB.prepare("SELECT id FROM payment_orders WHERE out_trade_no = ?")
+  const order = await env.DB.prepare("SELECT id, amount_cents FROM payment_orders WHERE out_trade_no = ?")
     .bind(outTradeNo)
     .first();
   if (order) {
+    // 金额必须与下单时服务端写入的金额一致，杜绝被篡改的回调。
+    const notifiedTotal = Number(transaction?.amount?.total);
+    if (Number.isFinite(notifiedTotal) && notifiedTotal !== Number(order.amount_cents)) {
+      console.error("wechat notify amount mismatch", outTradeNo, notifiedTotal, order.amount_cents);
+      return jsonResponse({ code: "FAIL", message: "amount mismatch" }, 400);
+    }
     await markPaymentOrderPaid(env, order.id);
   }
 
   return jsonResponse({ code: "SUCCESS", message: "成功" });
+}
+
+// 验证微信支付 v3 回调签名。需配置 WECHATPAY_PLATFORM_PUBLIC_KEY（平台证书公钥 PEM）。
+// 未配置公钥时返回 false（拒绝），避免在缺少验签的情况下放行伪造回调。
+async function verifyWeChatNotifySignature(env, request, rawBody) {
+  const publicKeyPem = env.WECHATPAY_PLATFORM_PUBLIC_KEY;
+  if (!publicKeyPem) {
+    return false;
+  }
+  const timestamp = request.headers.get("Wechatpay-Timestamp") || "";
+  const nonce = request.headers.get("Wechatpay-Nonce") || "";
+  const signature = request.headers.get("Wechatpay-Signature") || "";
+  if (!timestamp || !nonce || !signature) {
+    return false;
+  }
+  // 防重放：拒绝时间戳偏差超过 5 分钟的回调。
+  const skewSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(skewSeconds) || skewSeconds > 300) {
+    return false;
+  }
+  try {
+    const key = await crypto.subtle.importKey(
+      "spki",
+      pemPublicKeyToArrayBuffer(publicKeyPem),
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+    const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
+    return await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      base64ToArrayBuffer(signature),
+      encoder.encode(message)
+    );
+  } catch (error) {
+    console.error("wechat notify signature verify error", error);
+    return false;
+  }
 }
 
 async function handleChatMessageSend(request, env) {
@@ -2190,6 +2296,20 @@ function pemToArrayBuffer(pem) {
   const base64 = String(pem)
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\\n/g, "")
+    .replace(/\s+/g, "");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function pemPublicKeyToArrayBuffer(pem) {
+  const base64 = String(pem)
+    .replace(/-----BEGIN PUBLIC KEY-----/g, "")
+    .replace(/-----END PUBLIC KEY-----/g, "")
     .replace(/\\n/g, "")
     .replace(/\s+/g, "");
   const binary = atob(base64);

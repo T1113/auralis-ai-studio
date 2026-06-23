@@ -30,5 +30,8 @@
       "binding": "UPLOADS",
       "bucket_name": "impeccable-uploads"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  }
 }
