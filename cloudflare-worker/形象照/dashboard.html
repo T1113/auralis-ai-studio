@@ -73,8 +73,8 @@
                 <div class="user-dropdown-menu">
                     <div style="font-weight: var(--weight-medium); margin-bottom: var(--space-4);">当前服务状态</div>
                     <div class="flex-row justify-between align-center">
-                        <span style="font-size: 1.5rem; color: var(--color-text-primary); font-family: var(--font-sans); font-weight: var(--weight-semibold);">免费开放</span>
-                        <span class="badge badge-success">试运行</span>
+                        <span style="font-size: 1.5rem; color: var(--color-text-primary); font-family: var(--font-sans); font-weight: var(--weight-semibold);" id="nav-credit-balance">—</span>
+                        <span class="badge badge-success">可用积分</span>
                     </div>
                     <div class="dropdown-divider"></div>
                     <div style="font-size: var(--text-small); color: var(--color-text-secondary); margin-bottom: var(--space-12);">当前阶段不开放收费充值。</div>
@@ -213,6 +213,14 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('dashboard-sidebar');
             const grid = document.getElementById('dash-grid');
+
+            if (window.matchMedia('(max-width: 768px)').matches) {
+                // 移动端：侧边栏作为抽屉浮层弹出
+                const open = sidebar.classList.toggle('is-open');
+                getSidebarBackdrop().classList.toggle('is-open', open);
+                return;
+            }
+
             if (sidebar.style.opacity === '0') {
                 sidebar.style.opacity = '1';
                 setTimeout(() => sidebar.style.display = 'flex', 10);
@@ -222,6 +230,18 @@
                 setTimeout(() => sidebar.style.display = 'none', 200);
                 grid.style.gridTemplateColumns = '0px 1fr';
             }
+        }
+
+        function getSidebarBackdrop() {
+            let backdrop = document.getElementById('sidebar-backdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.id = 'sidebar-backdrop';
+                backdrop.className = 'sidebar-backdrop';
+                backdrop.addEventListener('click', toggleSidebar);
+                document.body.appendChild(backdrop);
+            }
+            return backdrop;
         }
     </script>
 </body>

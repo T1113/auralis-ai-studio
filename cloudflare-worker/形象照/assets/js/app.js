@@ -46,6 +46,7 @@
     try {
       const session = await apiFetch("/api/auth/session");
       persistLocalUser(session);
+      fillCreditBalance(session);
       return session;
     } catch (_error) {
       clearLocalUser();
@@ -56,6 +57,11 @@
   async function requireAuth(redirectPath) {
     const session = await syncSession();
     if (!session.authenticated) {
+      // 记住当前页面，登录后回到原流程而不是落到控制台。
+      const current = window.location.pathname.split("/").pop() + window.location.search;
+      if (current && !current.startsWith("login")) {
+        setPostAuthRedirect(current);
+      }
       window.location.href = redirectPath || "login.html";
       throw new Error("AUTH_REQUIRED");
     }
@@ -194,6 +200,66 @@
       return "dashboard.html";
     }
     return next;
+  }
+
+  // ---- 移动端全局交互兜底（触屏下拉菜单 / 侧边栏抽屉） ----
+
+  function isMobileViewport() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  // 触屏没有 hover：点击头像切换下拉菜单，点击外部关闭。
+  document.addEventListener("click", function (event) {
+    const container = event.target.closest(".user-dropdown-container");
+    document.querySelectorAll(".user-dropdown-container.is-open").forEach(function (el) {
+      if (el !== container) {
+        el.classList.remove("is-open");
+      }
+    });
+    if (container && !event.target.closest(".user-dropdown-menu")) {
+      container.classList.toggle("is-open");
+    }
+  });
+
+  // 移动端拦截各 dashboard 页面的 toggleSidebar，统一用抽屉浮层。
+  document.addEventListener("click", function (event) {
+    const trigger = event.target.closest('[onclick*="toggleSidebar"]');
+    if (!trigger || !isMobileViewport()) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const sidebar = document.getElementById("dashboard-sidebar") || document.querySelector(".sidebar");
+    if (!sidebar) {
+      return;
+    }
+    let backdrop = document.getElementById("sidebar-backdrop");
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.id = "sidebar-backdrop";
+      backdrop.className = "sidebar-backdrop";
+      backdrop.addEventListener("click", function () {
+        sidebar.classList.remove("is-open");
+        backdrop.classList.remove("is-open");
+      });
+      document.body.appendChild(backdrop);
+    }
+    const open = sidebar.classList.toggle("is-open");
+    backdrop.classList.toggle("is-open", open);
+  }, true);
+
+  // 自动把积分余额填进带有约定 id 的元素，替换过时的"免费开放"文案。
+  function fillCreditBalance(sessionPayload) {
+    if (!sessionPayload || !sessionPayload.authenticated || !sessionPayload.user) {
+      return;
+    }
+    const credits = Number(sessionPayload.user.credits || 0);
+    ["nav-credit-balance", "main-credit-balance"].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerText = credits + " 积分";
+      }
+    });
   }
 
   window.ImpeccableApp = {

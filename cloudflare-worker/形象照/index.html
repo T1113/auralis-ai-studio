@@ -430,10 +430,10 @@
                     <a href="gallery.html" class="btn btn-secondary btn-mobile-full" data-i18n="btn_view_cases">先看 50+ 真实样片</a>
                 </div>
                 <!-- Trust points -->
-                <div class="flex-col gap-sm" style="font-size: var(--text-small); color: var(--color-text-tertiary);">
-                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>~3 分钟出图，2 次免费重绘</span></div>
-                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>原图与成片仅本人可见，支持一键彻底删除（含后端备份）</span></div>
-                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>7 天无理由可联系客服处理</span></div>
+                <div class="flex-col gap-sm" style="font-size: var(--text-small); color: var(--color-text-secondary);">
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="var(--color-status-success)" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>~3 分钟出图，2 次免费重绘</span></div>
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="var(--color-status-success)" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>原图与成片仅本人可见，支持一键彻底删除（含后端备份）</span></div>
+                    <div class="flex-row gap-sm"><svg width="16" height="16" fill="var(--color-status-success)" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> <span>7 天无理由可联系客服处理</span></div>
                 </div>
             </div>
 
@@ -478,14 +478,21 @@
             gap: var(--space-24);
         }
         .hero-trust-card {
-            padding: var(--space-16) var(--space-20);
+            padding: var(--space-24);
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.02);
+            transition: border-color .2s ease, background .2s ease;
+        }
+        .hero-trust-card:hover {
+            border-color: rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.04);
         }
         .hero-trust-title {
             font-weight: var(--weight-semibold);
-            font-size: 1rem;
-            margin-bottom: 6px;
+            font-size: 1.0625rem;
+            letter-spacing: -0.01em;
+            margin-bottom: var(--space-8);
             color: white;
         }
         .hero-trust-desc {
@@ -935,27 +942,31 @@
             display: grid;
             grid-template-columns: 2.8rem 1fr 1.75rem;
             gap: var(--space-16);
-            align-items: center;
-            padding: var(--space-24) 0;
+            align-items: baseline;
+            padding: var(--space-28) 0;
             cursor: pointer;
             list-style: none;
             user-select: none;
+            transition: opacity .2s ease;
         }
+        .faq-item summary:hover { opacity: .72; }
         .faq-item summary::-webkit-details-marker { display: none; }
         .faq-num {
-            font-size: 11px;
+            font-size: 13px;
             font-weight: var(--weight-semibold);
-            letter-spacing: .12em;
+            letter-spacing: .14em;
             color: var(--color-text-tertiary);
             font-variant-numeric: tabular-nums;
-            padding-top: 2px;
         }
+        .faq-item[open] .faq-num { color: var(--color-text-primary); }
         .faq-question {
-            font-size: var(--text-body);
+            font-size: clamp(1.0625rem, 0.95rem + 0.45vw, 1.1875rem);
             font-weight: var(--weight-semibold);
             color: var(--color-text-primary);
             line-height: 1.4;
+            letter-spacing: -0.01em;
         }
+        .faq-icon { align-self: center; }
         .faq-icon {
             width: 22px;
             height: 22px;
@@ -989,7 +1000,7 @@
             padding: 0 0 var(--space-28) 4.2rem;
             color: var(--color-text-secondary);
             line-height: 1.75;
-            font-size: var(--text-body);
+            font-size: 0.9375rem;
             margin: 0;
         }
         .faq-answer strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
@@ -1064,8 +1075,9 @@
         }
         .footer-brand-name {
             font-weight: var(--weight-semibold);
-            font-size: 1.05rem;
-            margin-bottom: 6px;
+            font-size: 1.25rem;
+            letter-spacing: -0.01em;
+            margin-bottom: var(--space-8);
         }
         .footer-brand-name span {
             color: var(--color-text-secondary);
@@ -1095,6 +1107,7 @@
         .footer-col-title {
             font-weight: var(--weight-semibold);
             font-size: 13px;
+            letter-spacing: .04em;
             color: var(--color-text-primary);
             margin-bottom: var(--space-8);
         }
@@ -1162,7 +1175,8 @@
             e.preventDefault();
             const session = await window.ImpeccableApp.syncSession();
             if(!session.authenticated) {
-                window.location.href = 'login.html';
+                window.ImpeccableApp.setPostAuthRedirect('upload.html');
+                window.location.href = 'login.html?next=upload.html';
             } else {
                 window.location.href = 'upload.html';
             }

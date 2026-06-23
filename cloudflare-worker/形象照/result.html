@@ -794,9 +794,9 @@
                 unlockMode = unlock.mode || "mock";
             } catch (_e) {
                 unlockPackages = [
-                    { id: "experience", label: "体验包", subtitle: "1 次生成 / 4 张职业成片", amountCents: 3900 },
-                    { id: "standard",   label: "标准包", subtitle: "4 次生成 / 16 张多风格成片", amountCents: 9900 },
-                    { id: "flagship",   label: "旗舰包", subtitle: "12 次生成 / 48 张全风格", amountCents: 24900 },
+                    { id: "single",   label: "体验包", subtitle: "1 次生成 / 4 张职业成片", amountCents: 3900 },
+                    { id: "standard", label: "标准包", subtitle: "4 次生成 / 16 张多风格成片", amountCents: 9900 },
+                    { id: "pro",      label: "团队包", subtitle: "12 次生成 / 48 张全风格", amountCents: 24900 },
                 ];
                 unlockMode = "mock";
             }
@@ -875,12 +875,8 @@
                     "/api/jobs/" + encodeURIComponent(currentBatchId) + "/checkout/mock-confirm",
                     { method: "POST", body: JSON.stringify({ outTradeNo }) }
                 );
-                if (resp && resp.job) {
-                    currentJob = resp.job;
-                    currentResults = resp.job.results || [];
-                    isAssetsUnlocked = !!resp.job.unlockedAt;
-                    renderResultGrid(currentResults);
-                    executePaidResultUI();
+                if (resp && resp.unlockedAt) {
+                    await loadJob();
                 }
                 window.ImpeccableApp.showToast("支付成功，已解锁高清下载。", "success");
                 closeCheckoutModal();

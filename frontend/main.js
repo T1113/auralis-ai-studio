@@ -151,11 +151,26 @@ generateBtn.addEventListener('click', async () => {
 function finishGeneration(url) {
   resultImage.src = url;
   
-  // Download handler
+  // Download handler.
+  // Note: this is the open-source demo. The `download` attribute is ignored by
+  // browsers for cross-origin URLs, so we only force-download same-origin images
+  // (e.g. real generated results) and otherwise open the image in a new tab.
   downloadBtn.onclick = () => {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Auralis_Portrait_${currentStyle}.png`;
+    const isSameOrigin = (() => {
+      try {
+        return new URL(url, window.location.href).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    })();
+    if (isSameOrigin) {
+      a.download = `Auralis_Portrait_${currentStyle}.png`;
+    } else {
+      a.target = '_blank';
+      a.rel = 'noopener';
+    }
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

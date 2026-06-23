@@ -1,5 +1,7 @@
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 30;
 const PASSWORD_ITERATIONS = 100000;
+// 仅用于"账户不存在"时执行一次等价的 PBKDF2，抹平登录响应时间差以防用户枚举。
+const DUMMY_PASSWORD_SALT_HEX = "00000000000000000000000000000000";
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_INITIAL_CREDITS = 0;
 const DEFAULT_LOCAL_INITIAL_CREDITS = 1000;
@@ -7,6 +9,41 @@ const DEFAULT_GENERATION_COST_CREDITS = 100;
 const DEFAULT_FREE_REGENERATIONS = 2;
 const DEFAULT_TOP_UP_CREDITS = 1000;
 const DEFAULT_TOP_UP_AMOUNT_CENTS = 9900;
+// 套餐定价是服务端唯一可信来源；前端只回传 packageId。
+const BILLING_PACKAGES = [
+  {
+    id: "single",
+    name: "体验包",
+    tagline: "试一次，看效果",
+    amountCents: 3900,
+    credits: 100,
+    generations: 1,
+    popular: false,
+    features: ["1 次生成 / 4 张成片", "2 次免费重绘", "全部风格可选"]
+  },
+  {
+    id: "standard",
+    name: "标准包",
+    tagline: "最划算的求职套餐",
+    amountCents: 9900,
+    originalAmountCents: 15600,
+    credits: 400,
+    generations: 4,
+    popular: true,
+    features: ["4 次生成 / 16 张成片", "每次 2 次免费重绘", "单次成本低至 ¥24.75"]
+  },
+  {
+    id: "pro",
+    name: "团队包",
+    tagline: "团队/多场景批量出片",
+    amountCents: 24900,
+    originalAmountCents: 46800,
+    credits: 1200,
+    generations: 12,
+    popular: false,
+    features: ["12 次生成 / 48 张成片", "每次 2 次免费重绘", "单次成本低至 ¥20.75"]
+  }
+];
 const STALE_GENERATION_RETRY_AFTER_MS = 90 * 1000;
 const IMAGE_GENERATION_TIMEOUT_MS = 110 * 1000;
 const ARK_IMAGE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
@@ -95,8 +132,31 @@ export default {
         request
       );
     }
+  },
+
+  // 定时清理过期的限流计数与失效的重置 token，防止表无限增长。
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(cleanupExpiredRecords(env));
   }
 };
+
+// 清理 24 小时前的限流窗口，以及已使用或已过期 24 小时的重置 token。
+async function cleanupExpiredRecords(env) {
+  if (!env.DB) {
+    return;
+  }
+  const now = Date.now();
+  try {
+    await env.DB.prepare("DELETE FROM rate_limits WHERE window_start < ?")
+      .bind(now - 24 * 60 * 60 * 1000)
+      .run();
+    await env.DB.prepare("DELETE FROM password_resets WHERE expires_at < ? OR used_at IS NOT NULL")
+      .bind(now - 24 * 60 * 60 * 1000)
+      .run();
+  } catch (error) {
+    console.error("cleanup expired records failed", error);
+  }
+}
 
 async function handleAssetRequest(request, env, url) {
   let response = await env.ASSETS.fetch(request);
@@ -165,6 +225,14 @@ async function handleApiRequest(request, env, url, ctx) {
     return handleLogin(request, env);
   }
 
+  if (pathname === "/api/auth/forgot" && request.method === "POST") {
+    return handleForgotPassword(request, env);
+  }
+
+  if (pathname === "/api/auth/reset" && request.method === "POST") {
+    return handleResetPassword(request, env);
+  }
+
   if (pathname === "/api/auth/logout" && request.method === "POST") {
     return handleLogout(request, env);
   }
@@ -227,6 +295,18 @@ async function handleApiRequest(request, env, url, ctx) {
 
   if (pathname.startsWith("/api/jobs/") && pathname.endsWith("/unlock") && request.method === "POST") {
     return handleUnlockJob(request, env, pathname);
+  }
+
+  if (pathname.startsWith("/api/jobs/") && pathname.endsWith("/checkout") && request.method === "POST") {
+    return handleJobCheckout(request, env, pathname);
+  }
+
+  if (pathname.startsWith("/api/jobs/") && pathname.endsWith("/checkout/mock-confirm") && request.method === "POST") {
+    return handleJobCheckoutMockConfirm(request, env, pathname);
+  }
+
+  if (pathname.startsWith("/api/jobs/") && pathname.endsWith("/payment-status") && request.method === "GET") {
+    return handleJobPaymentStatus(request, env, pathname, url);
   }
 
   if (pathname.startsWith("/api/jobs/") && pathname.endsWith("/regenerate") && request.method === "POST") {
@@ -323,6 +403,17 @@ async function handleLogin(request, env) {
     return jsonResponse({ error: "请填写正确的邮箱与密码。" }, 400);
   }
 
+  // 同一 IP / 同一邮箱分别限流，挡住撞库与针对单账号的爆破。
+  const ip = getClientIp(request);
+  const ipLimit = await enforceRateLimit(env, `login:ip:${ip}`, 20, 10 * 60 * 1000);
+  if (!ipLimit.allowed) {
+    return rateLimitedResponse(ipLimit.retryAfter);
+  }
+  const emailLimit = await enforceRateLimit(env, `login:email:${email}`, 10, 10 * 60 * 1000);
+  if (!emailLimit.allowed) {
+    return rateLimitedResponse(emailLimit.retryAfter);
+  }
+
   const user = await env.DB.prepare(
     `SELECT id, email, name, role, credits, password_hash, password_salt
      FROM users
@@ -331,12 +422,10 @@ async function handleLogin(request, env) {
     .bind(email)
     .first();
 
-  if (!user) {
-    return jsonResponse({ error: "账号或密码错误。" }, 401);
-  }
-
-  const passwordHash = await derivePasswordHash(password, user.password_salt);
-  if (passwordHash !== user.password_hash) {
+  // 即使账户不存在也执行一次 PBKDF2，让"无此账号"与"密码错误"耗时相近，避免用户枚举。
+  const saltForHash = user ? user.password_salt : DUMMY_PASSWORD_SALT_HEX;
+  const passwordHash = await derivePasswordHash(password, saltForHash);
+  if (!user || passwordHash !== user.password_hash) {
     return jsonResponse({ error: "账号或密码错误。" }, 401);
   }
 
@@ -391,6 +480,147 @@ async function handleSession(request, env) {
   });
 }
 
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+
+function isMailConfigured(env) {
+  return Boolean(env.RESEND_API_KEY && env.MAIL_FROM);
+}
+
+async function sendPasswordResetEmail(env, email, resetUrl) {
+  const siteName = env.PUBLIC_SITE_NAME || env.APP_NAME || "Auralis";
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: env.MAIL_FROM,
+      to: [email],
+      subject: `${siteName} 密码重置`,
+      html: `
+        <div style="font-family: -apple-system, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+          <h2 style="margin: 0 0 16px;">${siteName} 密码重置</h2>
+          <p style="color: #444; line-height: 1.7;">我们收到了你的密码重置请求。点击下面的按钮设置新密码，链接 30 分钟内有效：</p>
+          <p style="margin: 24px 0;">
+            <a href="${resetUrl}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none;">设置新密码</a>
+          </p>
+          <p style="color: #888; font-size: 13px; line-height: 1.7;">如果按钮无法点击，请复制以下链接到浏览器打开：<br>${resetUrl}</p>
+          <p style="color: #888; font-size: 13px;">如果这不是你的操作，请忽略本邮件，你的密码不会被更改。</p>
+        </div>`
+    })
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`邮件发送失败（${response.status}）：${detail.slice(0, 200)}`);
+  }
+}
+
+async function handleForgotPassword(request, env) {
+  const payload = await readJson(request);
+  const email = normaliseEmail(payload?.email);
+  if (!email) {
+    return jsonResponse({ error: "请填写邮箱地址。" }, 400);
+  }
+
+  // 无论账户是否存在都返回相同文案，避免暴露注册信息。
+  const genericResponse = { success: true, message: "如果该邮箱已注册，我们已发送密码重置邮件，请查收（注意垃圾箱）。" };
+
+  // 限流：同一 IP 与同一目标邮箱都设上限，防止刷邮件 / 骚扰他人收件箱。
+  const ip = getClientIp(request);
+  const ipLimit = await enforceRateLimit(env, `forgot:ip:${ip}`, 10, 60 * 60 * 1000);
+  if (!ipLimit.allowed) {
+    return rateLimitedResponse(ipLimit.retryAfter);
+  }
+  const emailLimit = await enforceRateLimit(env, `forgot:email:${email}`, 3, 60 * 60 * 1000);
+  if (!emailLimit.allowed) {
+    // 返回与正常路径一致的文案，避免通过限流差异判断邮箱是否注册。
+    return jsonResponse(genericResponse);
+  }
+
+  const user = await env.DB.prepare("SELECT id, email FROM users WHERE email = ?")
+    .bind(email)
+    .first();
+  if (!user) {
+    return jsonResponse(genericResponse);
+  }
+
+  const token = randomHex(32);
+  const tokenHash = await sha256Hex(token);
+  const now = Date.now();
+  // 同一用户的旧 token 全部作废，永远只有最新一封邮件有效。
+  await env.DB.prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL")
+    .bind(now, user.id)
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  )
+    .bind(randomId("rst"), user.id, tokenHash, now + PASSWORD_RESET_TTL_MS, now)
+    .run();
+
+  const resetUrl = `${new URL(request.url).origin}/reset.html?token=${token}`;
+
+  if (isMailConfigured(env)) {
+    try {
+      await sendPasswordResetEmail(env, user.email, resetUrl);
+    } catch (error) {
+      console.error("password reset mail failed", error);
+      return jsonResponse({ error: "邮件发送失败，请稍后再试或联系客服。" }, 502);
+    }
+    return jsonResponse(genericResponse);
+  }
+
+  if (!isProductionRuntime(env)) {
+    // 本地联调没有邮件服务时直接返回链接，方便测试完整流程。
+    return jsonResponse({ ...genericResponse, devResetUrl: resetUrl });
+  }
+
+  return jsonResponse({ error: "邮件服务暂未开通，请联系客服重置密码。" }, 503);
+}
+
+async function handleResetPassword(request, env) {
+  const payload = await readJson(request);
+  const token = sanitizeText(payload?.token, 128);
+  const newPassword = String(payload?.password || "");
+
+  if (!token) {
+    return jsonResponse({ error: "重置链接无效，请重新发起找回密码。" }, 400);
+  }
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) {
+    return jsonResponse({ error: passwordError }, 400);
+  }
+
+  const tokenHash = await sha256Hex(token);
+  const record = await env.DB.prepare(
+    `SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = ?`
+  )
+    .bind(tokenHash)
+    .first();
+
+  if (!record || record.used_at || Number(record.expires_at) < Date.now()) {
+    return jsonResponse({ error: "重置链接已失效，请重新发起找回密码。" }, 400);
+  }
+
+  const saltHex = randomHex(16);
+  const passwordHash = await derivePasswordHash(newPassword, saltHex);
+  const now = Date.now();
+  await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?")
+    .bind(passwordHash, saltHex, record.user_id)
+    .run();
+  await env.DB.prepare("UPDATE password_resets SET used_at = ? WHERE id = ?")
+    .bind(now, record.id)
+    .run();
+  // 重置密码后吊销该用户所有既有会话，防止被盗会话在改密后继续存活。
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?")
+    .bind(record.user_id)
+    .run();
+
+  return jsonResponse({ success: true, message: "密码已重置，请使用新密码登录。" });
+}
+
 async function handlePublicConfig(env) {
   const payment = resolvePaymentMode(env);
   const generation = resolveGenerationMode(env);
@@ -405,6 +635,7 @@ async function handlePublicConfig(env) {
       initialCredits: getInitialCredits(env),
       topUpCredits: DEFAULT_TOP_UP_CREDITS,
       topUpAmountCents: DEFAULT_TOP_UP_AMOUNT_CENTS,
+      packages: BILLING_PACKAGES,
       enabled: !isFreeTrialMode(env)
     },
     payment: {
@@ -412,6 +643,15 @@ async function handlePublicConfig(env) {
       ready: payment.ready,
       mockEnabled: payment.mockEnabled,
       requiredConfig: payment.ready || payment.mockEnabled ? [] : payment.requiredConfig
+    },
+    unlock: {
+      mode: payment.ready ? "wechat_native" : "mock",
+      packages: BILLING_PACKAGES.map((pkg) => ({
+        id: pkg.id,
+        label: pkg.name,
+        subtitle: `${pkg.generations} 次生成 / ${pkg.generations * 4} 张成片`,
+        amountCents: pkg.amountCents
+      }))
     },
     generation: {
       provider: generation.provider,
@@ -720,6 +960,10 @@ async function handleJobCreation(request, env, ctx) {
       } else {
         await task;
       }
+    } else {
+      await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
+        .bind("completed", Date.now(), jobId)
+        .run();
     }
   } catch (error) {
       if (generationCostCredits > 0) {
@@ -913,6 +1157,180 @@ async function handleUnlockJob(request, env, pathname) {
   return jsonResponse({ success: true });
 }
 
+async function requireOwnedJob(env, session, jobId) {
+  const job = await env.DB.prepare("SELECT id, user_id, unlocked_at FROM jobs WHERE id = ?")
+    .bind(jobId)
+    .first();
+  if (!job || (job.user_id !== session.user.id && session.user.role !== "admin")) {
+    return null;
+  }
+  return job;
+}
+
+// 结果页"支付解锁"下单：金额由服务端套餐表决定，订单挂在任务上，支付成功即解锁。
+async function handleJobCheckout(request, env, pathname) {
+  const session = await requireSession(request, env);
+  if (!session.ok) {
+    return session.response;
+  }
+
+  const jobId = pathname.replace("/api/jobs/", "").replace("/checkout", "");
+  const job = await requireOwnedJob(env, session, jobId);
+  if (!job) {
+    return jsonResponse({ error: "任务不存在。" }, 404);
+  }
+  if (job.unlocked_at) {
+    return jsonResponse({ alreadyUnlocked: true });
+  }
+
+  const payload = await readJson(request);
+  const pkg = BILLING_PACKAGES.find((item) => item.id === String(payload?.packageId || ""));
+  if (!pkg) {
+    return jsonResponse({ error: "套餐不存在，请刷新页面后重新选择。" }, 400);
+  }
+
+  const paymentMode = resolvePaymentMode(env);
+  if (!paymentMode.ready && !paymentMode.mockEnabled) {
+    return jsonResponse(
+      { error: "支付通道暂未开放，请稍后再试或联系客服。", requiredConfig: paymentMode.requiredConfig },
+      503
+    );
+  }
+
+  // 复用同一任务、同一套餐、同一金额的待支付订单，避免重复点击生成多个付款码导致重复扣款。
+  const existing = await env.DB.prepare(
+    `SELECT id, out_trade_no, code_url, amount_cents, credits
+     FROM payment_orders
+     WHERE job_id = ? AND user_id = ? AND status = 'pending' AND amount_cents = ?
+     ORDER BY created_at DESC LIMIT 1`
+  )
+    .bind(jobId, session.user.id, pkg.amountCents)
+    .first();
+  if (existing && (!paymentMode.ready || existing.code_url)) {
+    return jsonResponse({
+      orderId: existing.id,
+      outTradeNo: existing.out_trade_no,
+      mode: paymentMode.ready ? "wechat_native" : "mock",
+      amountCents: Number(existing.amount_cents),
+      credits: Number(existing.credits),
+      codeUrl: existing.code_url || "",
+      alreadyUnlocked: false,
+      reused: true
+    });
+  }
+
+  const orderId = randomId("pay");
+  const outTradeNo = `${orderId}_${Date.now()}`;
+  const now = Date.now();
+
+  await env.DB.prepare(
+    `INSERT INTO payment_orders
+       (id, user_id, provider, status, amount_cents, credits, out_trade_no, code_url, job_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(orderId, session.user.id, "wechat_native", "pending", pkg.amountCents, pkg.credits, outTradeNo, "", jobId, now, now)
+    .run();
+
+  let codeUrl = "";
+  if (paymentMode.ready) {
+    const payment = await createWeChatNativePrepay(env, {
+      outTradeNo,
+      amountCents: pkg.amountCents,
+      description: `${env.PUBLIC_SITE_NAME || env.APP_NAME || "Auralis"} ${pkg.name}（解锁高清下载）`,
+      notifyUrl: env.WECHATPAY_NOTIFY_URL || `${new URL(request.url).origin}/api/payments/wechat/notify`
+    });
+    codeUrl = payment.codeUrl || "";
+    await env.DB.prepare("UPDATE payment_orders SET code_url = ?, raw_response = ?, updated_at = ? WHERE id = ?")
+      .bind(codeUrl, JSON.stringify(payment.raw || {}), Date.now(), orderId)
+      .run();
+  }
+
+  return jsonResponse({
+    orderId,
+    outTradeNo,
+    mode: paymentMode.ready ? "wechat_native" : "mock",
+    amountCents: pkg.amountCents,
+    credits: pkg.credits,
+    codeUrl,
+    alreadyUnlocked: false
+  });
+}
+
+async function handleJobCheckoutMockConfirm(request, env, pathname) {
+  const session = await requireSession(request, env);
+  if (!session.ok) {
+    return session.response;
+  }
+
+  if (isProductionRuntime(env)) {
+    return jsonResponse({ error: "生产环境不能使用模拟支付确认。" }, 403);
+  }
+  if (isWeChatPayConfigured(env) && env.ENABLE_PAYMENT_MOCK !== "true") {
+    return jsonResponse({ error: "支付配置已启用，不能使用模拟支付确认。" }, 403);
+  }
+
+  const jobId = pathname.replace("/api/jobs/", "").replace("/checkout/mock-confirm", "");
+  const job = await requireOwnedJob(env, session, jobId);
+  if (!job) {
+    return jsonResponse({ error: "任务不存在。" }, 404);
+  }
+
+  const payload = await readJson(request);
+  const outTradeNo = sanitizeText(payload?.outTradeNo, 120);
+  const order = await env.DB.prepare(
+    "SELECT id FROM payment_orders WHERE out_trade_no = ? AND user_id = ? AND job_id = ?"
+  )
+    .bind(outTradeNo, session.user.id, jobId)
+    .first();
+  if (!order) {
+    return jsonResponse({ error: "支付订单不存在。" }, 404);
+  }
+
+  const result = await markPaymentOrderPaid(env, order.id, session.user.id);
+  if (!result.ok) {
+    return jsonResponse({ error: result.error }, result.status || 400);
+  }
+
+  const unlocked = await env.DB.prepare("SELECT unlocked_at FROM jobs WHERE id = ?")
+    .bind(jobId)
+    .first();
+
+  return jsonResponse({ success: true, unlockedAt: unlocked ? unlocked.unlocked_at : null, user: result.user });
+}
+
+async function handleJobPaymentStatus(request, env, pathname, url) {
+  const session = await requireSession(request, env);
+  if (!session.ok) {
+    return session.response;
+  }
+
+  const jobId = pathname.replace("/api/jobs/", "").replace("/payment-status", "");
+  const job = await requireOwnedJob(env, session, jobId);
+  if (!job) {
+    return jsonResponse({ error: "任务不存在。" }, 404);
+  }
+
+  const outTradeNo = sanitizeText(url.searchParams.get("outTradeNo"), 120);
+  let orderStatus = null;
+  if (outTradeNo) {
+    const order = await env.DB.prepare(
+      "SELECT status FROM payment_orders WHERE out_trade_no = ? AND user_id = ?"
+    )
+      .bind(outTradeNo, job.user_id)
+      .first();
+    orderStatus = order ? order.status : null;
+  }
+
+  const fresh = await env.DB.prepare("SELECT unlocked_at FROM jobs WHERE id = ?")
+    .bind(jobId)
+    .first();
+
+  return jsonResponse({
+    unlockedAt: fresh ? fresh.unlocked_at : null,
+    orderStatus
+  });
+}
+
 async function handleRegenerateJob(request, env, pathname, ctx) {
   const session = await requireSession(request, env);
   if (!session.ok) {
@@ -935,7 +1353,7 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
   }
 
   const now = Date.now();
-  await env.DB.prepare(
+  const decrement = await env.DB.prepare(
     `UPDATE jobs
      SET unlocked_at = NULL,
          free_regenerations_remaining = free_regenerations_remaining - 1,
@@ -945,6 +1363,10 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
   )
     .bind(now, now + 18000, jobId)
     .run();
+
+  if (!decrement.meta || decrement.meta.changes !== 1) {
+    return jsonResponse({ error: "免费重绘次数已用完。请重新创建生成任务并扣除积分。" }, 402);
+  }
 
   await env.DB.prepare("DELETE FROM job_results WHERE job_id = ?")
     .bind(jobId)
@@ -983,6 +1405,10 @@ async function handleRegenerateJob(request, env, pathname, ctx) {
     } else {
       await task;
     }
+  } else {
+    await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
+      .bind("completed", Date.now(), jobId)
+      .run();
   }
 
   return jsonResponse({
@@ -1117,8 +1543,13 @@ async function handleWeChatPrepay(request, env) {
   }
 
   const payload = await readJson(request);
-  const credits = normalisePositiveInteger(payload?.credits, DEFAULT_TOP_UP_CREDITS, 100, 100000);
-  const amountCents = normalisePositiveInteger(payload?.amountCents, DEFAULT_TOP_UP_AMOUNT_CENTS, 100, 10000000);
+  // 金额与积分只能由服务端套餐表决定，绝不信任客户端传入的数值。
+  const requestedPackage = BILLING_PACKAGES.find((pkg) => pkg.id === String(payload?.packageId || ""));
+  if (!requestedPackage) {
+    return jsonResponse({ error: "套餐不存在，请刷新页面后重新选择。" }, 400);
+  }
+  const credits = requestedPackage.credits;
+  const amountCents = requestedPackage.amountCents;
   const paymentMode = resolvePaymentMode(env);
   if (!paymentMode.ready && !paymentMode.mockEnabled) {
     return jsonResponse(
@@ -1245,9 +1676,25 @@ async function handleMockPaymentConfirm(request, env) {
 }
 
 async function handleWeChatPaymentNotify(request, env) {
-  const payload = await readJson(request);
   if (!isWeChatPayConfigured(env)) {
     return jsonResponse({ code: "FAIL", message: "wechat pay is not configured" }, 503);
+  }
+
+  // 读取原始报文用于验签（解析成 JSON 会丢失字节级一致性）。
+  const rawBody = await request.text();
+
+  // 验证微信平台证书签名：配置了公钥才校验，防止伪造的支付成功回调。
+  const signatureOk = await verifyWeChatNotifySignature(env, request, rawBody);
+  if (!signatureOk) {
+    console.error("wechat notify signature verification failed");
+    return jsonResponse({ code: "FAIL", message: "signature verification failed" }, 401);
+  }
+
+  let payload = {};
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {};
+  } catch (_error) {
+    return jsonResponse({ code: "FAIL", message: "invalid body" }, 400);
   }
 
   const transaction = await decryptWeChatNotifyResource(env, payload?.resource);
@@ -1258,14 +1705,59 @@ async function handleWeChatPaymentNotify(request, env) {
     return jsonResponse({ code: "SUCCESS", message: "notify accepted" });
   }
 
-  const order = await env.DB.prepare("SELECT id FROM payment_orders WHERE out_trade_no = ?")
+  const order = await env.DB.prepare("SELECT id, amount_cents FROM payment_orders WHERE out_trade_no = ?")
     .bind(outTradeNo)
     .first();
   if (order) {
+    // 金额必须与下单时服务端写入的金额一致，杜绝被篡改的回调。
+    const notifiedTotal = Number(transaction?.amount?.total);
+    if (Number.isFinite(notifiedTotal) && notifiedTotal !== Number(order.amount_cents)) {
+      console.error("wechat notify amount mismatch", outTradeNo, notifiedTotal, order.amount_cents);
+      return jsonResponse({ code: "FAIL", message: "amount mismatch" }, 400);
+    }
     await markPaymentOrderPaid(env, order.id);
   }
 
   return jsonResponse({ code: "SUCCESS", message: "成功" });
+}
+
+// 验证微信支付 v3 回调签名。需配置 WECHATPAY_PLATFORM_PUBLIC_KEY（平台证书公钥 PEM）。
+// 未配置公钥时返回 false（拒绝），避免在缺少验签的情况下放行伪造回调。
+async function verifyWeChatNotifySignature(env, request, rawBody) {
+  const publicKeyPem = env.WECHATPAY_PLATFORM_PUBLIC_KEY;
+  if (!publicKeyPem) {
+    return false;
+  }
+  const timestamp = request.headers.get("Wechatpay-Timestamp") || "";
+  const nonce = request.headers.get("Wechatpay-Nonce") || "";
+  const signature = request.headers.get("Wechatpay-Signature") || "";
+  if (!timestamp || !nonce || !signature) {
+    return false;
+  }
+  // 防重放：拒绝时间戳偏差超过 5 分钟的回调。
+  const skewSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(skewSeconds) || skewSeconds > 300) {
+    return false;
+  }
+  try {
+    const key = await crypto.subtle.importKey(
+      "spki",
+      pemPublicKeyToArrayBuffer(publicKeyPem),
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+    const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
+    return await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      base64ToArrayBuffer(signature),
+      encoder.encode(message)
+    );
+  } catch (error) {
+    console.error("wechat notify signature verify error", error);
+    return false;
+  }
 }
 
 async function handleChatMessageSend(request, env) {
@@ -1458,6 +1950,50 @@ async function getSessionFromRequest(request, env) {
   };
 }
 
+function getClientIp(request) {
+  return sanitizeText(request.headers.get("CF-Connecting-IP"), 120) || "unknown";
+}
+
+// 滑动固定窗口限流：同一 bucket 在 windowMs 内最多 limit 次。
+// 失败开放（DB 不可用时不拦截），避免限流层把正常登录也挡死。
+async function enforceRateLimit(env, bucket, limit, windowMs) {
+  if (!env.DB) {
+    return { allowed: true };
+  }
+  const now = Date.now();
+  try {
+    const row = await env.DB.prepare("SELECT count, window_start FROM rate_limits WHERE bucket = ?")
+      .bind(bucket)
+      .first();
+    if (!row || now - Number(row.window_start) > windowMs) {
+      await env.DB.prepare(
+        `INSERT INTO rate_limits (bucket, count, window_start) VALUES (?, 1, ?)
+         ON CONFLICT(bucket) DO UPDATE SET count = 1, window_start = excluded.window_start`
+      )
+        .bind(bucket, now)
+        .run();
+      return { allowed: true };
+    }
+    if (Number(row.count) >= limit) {
+      const retryAfter = Math.max(1, Math.ceil((windowMs - (now - Number(row.window_start))) / 1000));
+      return { allowed: false, retryAfter };
+    }
+    await env.DB.prepare("UPDATE rate_limits SET count = count + 1 WHERE bucket = ?").bind(bucket).run();
+    return { allowed: true };
+  } catch (error) {
+    console.error("rate limit check failed", error);
+    return { allowed: true };
+  }
+}
+
+function rateLimitedResponse(retryAfter) {
+  return jsonResponse(
+    { error: "操作过于频繁，请稍后再试。" },
+    429,
+    { "Retry-After": String(retryAfter || 60) }
+  );
+}
+
 async function requireSession(request, env) {
   const session = await getSessionFromRequest(request, env);
   if (!session) {
@@ -1540,6 +2076,22 @@ async function ensureBillingSchema(env) {
       paid_at INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
+    "ALTER TABLE payment_orders ADD COLUMN job_id TEXT",
+    `CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash)",
+    `CREATE TABLE IF NOT EXISTS rate_limits (
+      bucket TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      window_start INTEGER NOT NULL
+    )`,
     "CREATE INDEX IF NOT EXISTS idx_payment_orders_user_id ON payment_orders(user_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_payment_orders_out_trade_no ON payment_orders(out_trade_no)",
     `CREATE TABLE IF NOT EXISTS job_results (
@@ -1578,7 +2130,10 @@ async function ensureBillingSchema(env) {
     `UPDATE jobs
      SET charged_at = COALESCE(charged_at, created_at),
          generation_cost_credits = COALESCE(generation_cost_credits, ?),
-         free_regenerations_remaining = COALESCE(free_regenerations_remaining, ?)`
+         free_regenerations_remaining = COALESCE(free_regenerations_remaining, ?)
+     WHERE charged_at IS NULL
+        OR generation_cost_credits IS NULL
+        OR free_regenerations_remaining IS NULL`
   )
     .bind(DEFAULT_GENERATION_COST_CREDITS, DEFAULT_FREE_REGENERATIONS)
     .run();
@@ -1751,6 +2306,20 @@ function pemToArrayBuffer(pem) {
   return bytes.buffer;
 }
 
+function pemPublicKeyToArrayBuffer(pem) {
+  const base64 = String(pem)
+    .replace(/-----BEGIN PUBLIC KEY-----/g, "")
+    .replace(/-----END PUBLIC KEY-----/g, "")
+    .replace(/\\n/g, "")
+    .replace(/\s+/g, "");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -1775,7 +2344,7 @@ function base64ToUint8Array(base64) {
 
 async function markPaymentOrderPaid(env, orderId, expectedUserId) {
   const order = await env.DB.prepare(
-    `SELECT id, user_id, status, amount_cents, credits
+    `SELECT id, user_id, status, amount_cents, credits, job_id
      FROM payment_orders
      WHERE id = ?`
   )
@@ -1792,12 +2361,22 @@ async function markPaymentOrderPaid(env, orderId, expectedUserId) {
 
   if (order.status !== "paid") {
     const now = Date.now();
-    await env.DB.prepare("UPDATE payment_orders SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?")
+    const upd = await env.DB.prepare(
+      "UPDATE payment_orders SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ? AND status != 'paid'"
+    )
       .bind(now, now, order.id)
       .run();
-    await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
-      .bind(Number(order.credits || 0), order.user_id)
-      .run();
+    if (upd.meta && upd.meta.changes === 1) {
+      await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
+        .bind(Number(order.credits || 0), order.user_id)
+        .run();
+      // 结果页解锁订单：支付成功后同步解锁对应任务的高清下载。
+      if (order.job_id) {
+        await env.DB.prepare("UPDATE jobs SET unlocked_at = ?, updated_at = ? WHERE id = ? AND unlocked_at IS NULL")
+          .bind(now, now, order.job_id)
+          .run();
+      }
+    }
   }
 
   const user = await env.DB.prepare("SELECT id, name, email, role, credits FROM users WHERE id = ?")
@@ -2017,7 +2596,7 @@ async function loadJobResultItems(env, jobId, uploads) {
 
 async function processJobGeneration(env, jobId) {
   const job = await env.DB.prepare(
-    `SELECT id, user_id, style_summary
+    `SELECT id, user_id, style_summary, generation_cost_credits, charged_at
      FROM jobs
      WHERE id = ?`
   )
@@ -2120,6 +2699,23 @@ async function processJobGeneration(env, jobId) {
     await env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?")
       .bind("failed", Date.now(), jobId)
       .run();
+
+    // Refund the credits charged for this job, exactly once. We use charged_at as
+    // the "refunded" sentinel: clearing it atomically prevents double refunds from
+    // concurrent stale-generation retries.
+    const refundCredits = Number(job.generation_cost_credits || 0);
+    if (refundCredits > 0 && job.charged_at) {
+      const cleared = await env.DB.prepare(
+        "UPDATE jobs SET charged_at = NULL, updated_at = ? WHERE id = ? AND charged_at IS NOT NULL"
+      )
+        .bind(Date.now(), jobId)
+        .run();
+      if (cleared.meta && cleared.meta.changes === 1) {
+        await env.DB.prepare("UPDATE users SET credits = credits + ? WHERE id = ?")
+          .bind(refundCredits, job.user_id)
+          .run();
+      }
+    }
   }
 }
 
@@ -2383,20 +2979,12 @@ function validateUploadFile(file) {
 }
 
 function validatePassword(password) {
+  // 消费级产品只要求长度 + 字母数字组合，过严的复杂度规则会赶走注册用户。
   if (password.length < 8) {
     return "密码至少需要 8 位。";
   }
-  if (!/[A-Z]/.test(password)) {
-    return "密码需要至少包含 1 个大写字母。";
-  }
-  if (!/[a-z]/.test(password)) {
-    return "密码需要至少包含 1 个小写字母。";
-  }
-  if (!/[0-9]/.test(password)) {
-    return "密码需要至少包含 1 个数字。";
-  }
-  if (!/[\W_]/.test(password)) {
-    return "密码需要至少包含 1 个特殊符号。";
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    return "密码需要同时包含字母和数字。";
   }
   return null;
 }
@@ -2600,6 +3188,7 @@ async function handleGoogleLogin(request, env, url) {
   }
 
   const redirectUri = `${url.origin}/api/auth/google/callback`;
+  const state = randomHex(16);
   const googleUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   googleUrl.searchParams.set("client_id", clientId);
   googleUrl.searchParams.set("redirect_uri", redirectUri);
@@ -2607,8 +3196,59 @@ async function handleGoogleLogin(request, env, url) {
   googleUrl.searchParams.set("scope", "openid email profile");
   googleUrl.searchParams.set("access_type", "online");
   googleUrl.searchParams.set("prompt", "select_account");
+  googleUrl.searchParams.set("state", state);
 
-  return Response.redirect(googleUrl.toString(), 302);
+  const headers = new Headers({ Location: googleUrl.toString() });
+  headers.append("Set-Cookie", buildOAuthStateCookie(state, request));
+  const next = sanitizeOAuthNext(url.searchParams.get("next"));
+  if (next) {
+    headers.append("Set-Cookie", buildOAuthNextCookie(next, request));
+  }
+
+  return new Response(null, { status: 302, headers });
+}
+
+// 只允许站内相对页面，防止开放重定向。
+// 使用白名单而非黑名单：反斜杠会被浏览器规范化成斜杠（/\evil.com → //evil.com），
+// 黑名单很容易被绕过，所以只接受形如 "upload.html" / "upload.html?x=1" 的站内页面。
+const OAUTH_NEXT_PATTERN = /^[a-z0-9._-]+\.html(\?[\w=&%.-]*)?$/i;
+
+function sanitizeOAuthNext(value) {
+  const next = String(value || "").trim().replace(/^\/+/, "").slice(0, 200);
+  if (!next || next.includes("\\") || next.includes(":") || next.includes("//") || next.includes("..")) {
+    return "";
+  }
+  return OAUTH_NEXT_PATTERN.test(next) ? next : "";
+}
+
+function buildOAuthNextCookie(next, request) {
+  const parts = [`oauth_next=${encodeURIComponent(next)}`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=600"];
+  if (shouldUseSecureCookie(request)) {
+    parts.splice(3, 0, "Secure");
+  }
+  return parts.join("; ");
+}
+
+function readOAuthNextCookie(request) {
+  const cookies = request.headers.get("Cookie") || "";
+  const match = cookies.match(/(?:^|;\s*)oauth_next=([^;]+)/);
+  return match ? sanitizeOAuthNext(decodeURIComponent(match[1])) : "";
+}
+
+function buildOAuthStateCookie(state, request) {
+  const parts = [`oauth_state=${state}`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=600"];
+  if (shouldUseSecureCookie(request)) {
+    parts.splice(3, 0, "Secure");
+  }
+  return parts.join("; ");
+}
+
+function buildExpiredOAuthStateCookie(request) {
+  const parts = ["oauth_state=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  if (shouldUseSecureCookie(request)) {
+    parts.splice(3, 0, "Secure");
+  }
+  return parts.join("; ");
 }
 
 async function handleGoogleCallback(request, env, url) {
@@ -2616,6 +3256,12 @@ async function handleGoogleCallback(request, env, url) {
     const code = url.searchParams.get("code");
     if (!code) {
       return jsonResponse({ error: "Missing authorization code from Google." }, 400);
+    }
+
+    const returnedState = url.searchParams.get("state");
+    const expectedState = parseCookies(request.headers.get("Cookie")).oauth_state;
+    if (!returnedState || !expectedState || returnedState !== expectedState) {
+      return jsonResponse({ error: "Invalid OAuth state. Please retry login." }, 400);
     }
 
     const clientId = env.GOOGLE_CLIENT_ID;
@@ -2704,7 +3350,10 @@ async function handleGoogleCallback(request, env, url) {
     // Create session and redirect to dashboard
     const sessionResponse = await createSessionResponse(env, request, user);
     const responseHeaders = new Headers(sessionResponse.headers);
-    responseHeaders.set("Location", "/dashboard.html");
+    const next = readOAuthNextCookie(request);
+    responseHeaders.set("Location", next ? `/${next}` : "/dashboard.html");
+    responseHeaders.append("Set-Cookie", buildExpiredOAuthStateCookie(request));
+    responseHeaders.append("Set-Cookie", "oauth_next=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
 
     return new Response(null, {
       status: 302,

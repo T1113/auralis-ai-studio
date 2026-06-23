@@ -264,15 +264,15 @@
                     <span style="color: var(--color-text-secondary);">套餐权益</span>
                     <span style="font-weight: var(--weight-medium); text-align: right;" id="checkout-package-summary"><span style="color:var(--color-text-tertiary); font-size: var(--text-small);">正在统计生成数量...</span></span>
                 </div>
-                <div class="summary-row" style="background-color: var(--color-surface-subtle); margin: var(--space-16) -var(--space-24) -var(--space-24); padding: var(--space-24); border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+                <div class="summary-row" style="background-color: var(--color-surface-subtle); margin: var(--space-16) calc(-1 * var(--space-24)) calc(-1 * var(--space-24)); padding: var(--space-24); border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
                     <div style="width: 100%;">
                         <div class="flex-row justify-between mb-sm">
                             <span style="color: var(--color-text-secondary);">本次生成费用</span>
-                            <span class="price-total" style="margin-top: 0;" id="checkout-price">免费</span>
+                            <span class="price-total" style="margin-top: 0;" id="checkout-price">—</span>
                         </div>
                         <div class="flex-row justify-between mb-sm" style="font-size: var(--text-small); color: var(--color-text-secondary);">
-                            <span>试运行状态</span>
-                            <span id="checkout-credits">免费开放</span>
+                            <span>账户积分</span>
+                            <span id="checkout-credits">正在读取...</span>
                         </div>
                         <button class="btn btn-primary" style="width: 100%; margin-top: var(--space-16);" id="checkout-submit-btn" onclick="beginCheckout()">开始生成</button>
                         <div class="trust-text">每个任务包含 2 次免费重绘机会。</div>
@@ -385,10 +385,13 @@
         }
 
         function hydratePaymentPanel(config) {
+            const panel = document.getElementById("wechat-payment-panel");
             if (config.billing && config.billing.enabled === false) {
-                document.getElementById("wechat-payment-panel").style.display = "none";
+                panel.style.display = "none";
                 return;
             }
+            // 计费开启时始终展示充值入口，积分不足的用户才有付费路径。
+            panel.style.display = "block";
             const payment = config.payment || {};
             const payButton = document.getElementById("wechat-pay-btn");
             const copy = document.getElementById("payment-panel-copy");
@@ -472,6 +475,14 @@
                 submitButton.disabled = false;
                 submitButton.innerText = "开始生成";
                 showGenerationOverlay(false);
+                if (error.status === 402) {
+                    // 积分不足：直接把用户带到充值面板，而不是只弹一条提示。
+                    const panel = document.getElementById("wechat-payment-panel");
+                    panel.style.display = "block";
+                    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+                    window.ImpeccableApp.showToast(error.message || "积分不足，请先充值后再生成。", "error");
+                    return;
+                }
                 window.ImpeccableApp.showToast(error.message || "创建订单失败，请稍后再试。", "error");
             }
         }
@@ -484,6 +495,40 @@
         }
 
         let activePaymentOrderId = null;
+        let paymentPollTimer = null;
+
+        function startPaymentPolling() {
+            if (paymentPollTimer) clearInterval(paymentPollTimer);
+            paymentPollTimer = setInterval(async () => {
+                if (!activePaymentOrderId) return;
+                try {
+                    const data = await window.ImpeccableApp.apiFetch("/api/payments/" + encodeURIComponent(activePaymentOrderId));
+                    if (data.order && data.order.status === "paid") {
+                        clearInterval(paymentPollTimer);
+                        paymentPollTimer = null;
+                        await onPaymentSuccess();
+                    }
+                } catch (_error) {
+                    // 轮询失败静默重试，下一轮继续。
+                }
+            }, 3000);
+        }
+
+        async function onPaymentSuccess() {
+            try {
+                const session = await window.ImpeccableApp.syncSession();
+                window.currentSession = session;
+                const credits = session.user ? Number(session.user.credits || 0) : 0;
+                const cost = publicConfig && publicConfig.billing ? Number(publicConfig.billing.generationCostCredits || 0) : 0;
+                document.getElementById("checkout-credits").innerText = `${credits} 积分（本次扣 ${cost} 积分）`;
+            } catch (_error) { /* 余额刷新失败不阻塞成功提示 */ }
+            document.getElementById("wechat-pay-btn").innerText = "充值成功";
+            document.getElementById("payment-status-text").innerText = "积分已到账，可以开始生成了。";
+            document.getElementById("wechat-qr-box").innerHTML = "✓ 已支付";
+            window.ImpeccableApp.showToast("充值成功，积分已到账！点击上方“开始生成”继续。", "success");
+            const summary = document.querySelector(".summary-block");
+            if (summary) summary.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
 
         async function createWeChatPayment() {
             if (!selectedPackageId) {
@@ -506,7 +551,10 @@
                 const yuan = (payment.amountCents / 100).toFixed(2);
                 document.getElementById("payment-status-text").innerText = payment.mock
                     ? `本地模拟订单已创建（¥${yuan}）。`
-                    : `请使用微信扫描二维码完成 ¥${yuan} 付款。`;
+                    : `请使用微信扫描二维码完成 ¥${yuan} 付款，支付成功后页面会自动更新。`;
+                if (!payment.mock) {
+                    startPaymentPolling();
+                }
             } catch (error) {
                 payButton.disabled = false;
                 payButton.innerText = "微信支付充值";
@@ -520,7 +568,17 @@
                 box.innerHTML = "模拟<br>微信支付";
                 return;
             }
-            box.innerHTML = `<img src="${buildQrImageUrl(payment.codeUrl)}" alt="微信支付二维码">`;
+            const img = document.createElement("img");
+            img.alt = "微信支付二维码";
+            img.src = buildQrImageUrl(payment.codeUrl);
+            img.onerror = () => {
+                box.innerHTML = "二维码加载失败<br>请点击按钮重试";
+                const btn = document.getElementById("wechat-pay-btn");
+                btn.disabled = false;
+                btn.innerText = "重新获取支付码";
+            };
+            box.innerHTML = "";
+            box.appendChild(img);
         }
 
         function buildQrImageUrl(value) {
@@ -533,15 +591,17 @@
                 return;
             }
 
-            const result = await window.ImpeccableApp.apiFetch("/api/payments/wechat/mock-confirm", {
-                method: "POST",
-                body: JSON.stringify({ orderId: activePaymentOrderId })
-            });
-            window.currentSession = { authenticated: true, user: result.user };
-            document.getElementById("checkout-credits").innerText = `${result.user.credits || 0} 积分`;
-            document.getElementById("mock-confirm-btn").style.display = "none";
-            document.getElementById("wechat-pay-btn").innerText = "充值成功";
-            window.ImpeccableApp.showToast("充值成功，积分已到账。现在可以扣除积分开始生成。", "success");
+            try {
+                const result = await window.ImpeccableApp.apiFetch("/api/payments/wechat/mock-confirm", {
+                    method: "POST",
+                    body: JSON.stringify({ orderId: activePaymentOrderId })
+                });
+                window.currentSession = { authenticated: true, user: result.user };
+                document.getElementById("mock-confirm-btn").style.display = "none";
+                await onPaymentSuccess();
+            } catch (error) {
+                window.ImpeccableApp.showToast(error.message || "模拟支付确认失败。", "error");
+            }
         }
     </script>
 </body>
